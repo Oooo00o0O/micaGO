@@ -41,7 +41,12 @@ func ActionPlatformSupport() PlatformSupport {
 		return out
 	}
 	if major >= 26 {
-		out.Warning = "macOS 26/Tahoe may block private IMCore actions through library validation or private entitlement checks"
+		// C79: be direct. On macOS 26+ library validation / private-entitlement
+		// checks stop the helper from loading IMCore at all, so the honest
+		// message is "this doesn't work here", not "may block".
+		out.Warning = "macOS 26 (Tahoe) and newer block the private IMCore APIs these actions rely on, " +
+			"so Edit, Unsend and Delete are unavailable on this Mac. Everything else — sending, " +
+			"receiving, attachments and reactions — is unaffected."
 	}
 	return out
 }

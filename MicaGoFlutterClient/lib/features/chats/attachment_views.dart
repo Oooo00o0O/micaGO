@@ -1005,15 +1005,38 @@ class _ImageAttachmentState extends State<_ImageAttachment> {
   Future<Uint8List> _loadBytes() =>
       MediaCache.instance.attachmentPreview(widget.api, widget.attachment);
 
+  String get _aspectKey =>
+      widget.attachment.previewUrl ?? widget.attachment.guid;
+
+  /// C77: records the laid-out shape after paint, so the *next* view of this
+  /// image can reserve exactly the right box instead of resizing into place.
+  void _rememberAspect(BuildContext imageContext) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final box = imageContext.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize || box.size.height <= 0) return;
+      MediaCache.instance.rememberAspectRatio(
+        _aspectKey,
+        box.size.width / box.size.height,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final bytes = _bytes;
     if (bytes != null) return _image(context, bytes);
-    final placeholderWidth = MediaQuery.sizeOf(context).width * 0.58;
-    final placeholder = _MediaLoadingPlaceholder(
-      width: placeholderWidth,
-      height: 200,
-    );
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.738;
+    // C77: with a remembered ratio the placeholder is already the final size.
+    final knownAspect = MediaCache.instance.aspectRatioFor(_aspectKey);
+    final placeholder = knownAspect == null
+        ? _MediaLoadingPlaceholder(
+            width: MediaQuery.sizeOf(context).width * 0.58,
+            height: 200,
+          )
+        : _MediaLoadingPlaceholder(
+            width: maxWidth,
+            height: (maxWidth / knownAspect).clamp(80.0, 306.0),
+          );
     return FutureBuilder<Uint8List>(
       future: _future,
       builder: (context, snap) {

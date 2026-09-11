@@ -455,11 +455,21 @@ func (h *Handlers) permissionStatus() store.ServerPermissionStatus {
 			"reads ~/Library/Messages/chat.db; grant Full Disk Access to the server (or its launcher) in System Settings > Privacy & Security"),
 		Attachments: probeReadable(h.attachmentsRoot,
 			"reads ~/Library/Messages/Attachments for attachment downloads"),
-		Automation: store.PermissionCheck{
-			Status: "unknown",
-			Detail: "Automation (AppleScript control of Messages) cannot be probed without sending; verify in System Settings > Privacy & Security > Automation",
-		},
+		// C79: really probed now (read-only AppleScript property read, cached)
+		// instead of a hardcoded "unknown".
+		Automation: automationPermission(),
 	}
+}
+
+// Injectable so status tests don't depend on the host Mac's real Automation
+// grant (same pattern as imessage/platform.go).
+var probeAutomation = micasend.ProbeAutomation
+
+func automationPermission() store.PermissionCheck {
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	probe := probeAutomation(ctx)
+	return store.PermissionCheck{Status: probe.Status, Detail: probe.Detail}
 }
 
 // probeReadable opens the given path read-only to determine whether the server

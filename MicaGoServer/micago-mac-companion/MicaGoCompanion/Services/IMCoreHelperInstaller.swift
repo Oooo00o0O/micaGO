@@ -54,6 +54,27 @@ enum IMCoreHelperInstaller {
         }
     }
 
+    /// C79: removes an installed helper. On macOS 26+ the private IMCore APIs
+    /// are blocked outright, so users who installed the helper earlier are left
+    /// with a binary that can never work — they need a way to take it back off.
+    /// Returns true when a helper was actually removed.
+    @discardableResult
+    static func uninstall() throws -> Bool {
+        let fm = FileManager.default
+        var removedAny = false
+        for name in candidateNames {
+            let path = installDirectory().appendingPathComponent(name)
+            guard fm.fileExists(atPath: path.path) else { continue }
+            do {
+                try fm.removeItem(at: path)
+                removedAny = true
+            } catch {
+                throw InstallError.ioFailure(error.localizedDescription)
+            }
+        }
+        return removedAny
+    }
+
     /// `~/.micago/bin` — the stable install location the backend also scans.
     static func installDirectory() -> URL {
         FileManager.default.homeDirectoryForCurrentUser

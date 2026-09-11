@@ -461,6 +461,44 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// C79: removes the installed helper and re-scans, so the card immediately
+    /// reflects "not installed". Needed on macOS 26+, where the helper can never
+    /// work and users who installed it earlier had no way to remove it.
+    func uninstallIMCoreHelper() {
+        guard !helperInstalling else { return }
+        helperInstalling = true
+        helperInstallMessage = nil
+        Task { @MainActor in
+            defer { helperInstalling = false }
+            let removed: Bool
+            do {
+                removed = try IMCoreHelperInstaller.uninstall()
+            } catch {
+                helperInstallMessage = error.localizedDescription
+                return
+            }
+            guard removed else {
+                helperInstallMessage = "No IMCore helper was installed."
+                return
+            }
+            guard let baseURL else {
+                helperInstallMessage = "Removed the IMCore helper."
+                return
+            }
+            let client = APIClient(baseURL: baseURL, token: token)
+            do {
+                _ = try await client.refreshMessageActions()
+                await refresh()
+                helperInstallMessage = "Removed the IMCore helper."
+            } catch {
+                helperInstallMessage = "Removed the IMCore helper. Restart the server to refresh its status."
+            }
+        }
+    }
+
+    /// True when a helper binary is present in `~/.micago/bin`.
+    var helperInstalledOnDisk: Bool { IMCoreHelperInstaller.isInstalled }
+
     /// User-facing line for each post-install helper state.
     private func installResultMessage(state: String, path: String) -> String {
         switch state {

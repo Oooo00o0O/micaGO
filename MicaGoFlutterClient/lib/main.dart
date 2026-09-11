@@ -6,6 +6,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'app/mica_go_app.dart';
 import 'core/app_controller.dart';
+import 'core/ui/keyboard_insets.dart';
 import 'core/network/push_service.dart';
 import 'core/storage/secure_store.dart';
 import 'core/theme_controller.dart';
@@ -66,6 +67,10 @@ Future<void> main() async {
   controller.contactIdResolver = contacts.contactIdFor;
   // C32: and show the contact's avatar in the notification when available.
   controller.contactAvatarResolver = contacts.thumbnailForHandle;
+
+  // C77: one global observer that keeps IME focus/insets honest across
+  // lock/unlock (see keyboard_insets.dart).
+  KeyboardLifecycle.instance.install();
 
   runApp(
     MicaGoApp(

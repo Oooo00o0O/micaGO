@@ -196,7 +196,24 @@ class AppController extends ChangeNotifier {
   // a system notification. The app shell updates this from lifecycle events.
   bool _foreground = true;
   bool get isForeground => _foreground;
-  void setForeground(bool value) => _foreground = value;
+  /// C77: the connection watchdog only counts **foreground** time.
+  ///
+  /// Locking the screen cuts the network and pauses/throttles Dart timers, so a
+  /// watchdog that keeps counting while backgrounded fires during the lock and
+  /// the "can't reach the server" dialog is already waiting when the user
+  /// unlocks — even though the app reconnects fine. Going to the background
+  /// therefore cancels the countdown and clears any confirmed problem;
+  /// returning to the foreground restarts it from zero, giving the reconnect a
+  /// full, honest 10 seconds.
+  void setForeground(bool value) {
+    if (_foreground == value) return;
+    _foreground = value;
+    if (!value) {
+      _clearConnectionProblem();
+      return;
+    }
+    _updateConnectionHealth();
+  }
 
   final Set<String> _activeChatGuids = <String>{};
   bool isChatActive(String chatGuid) => _activeChatGuids.contains(chatGuid);
@@ -1004,10 +1021,13 @@ class AppController extends ChangeNotifier {
   /// countdown is already running must not restart it, otherwise a flapping
   /// socket could postpone the warning forever.
   void _armConnectionProblemWatchdog() {
+    // Never count down while backgrounded — see setForeground.
+    if (!_foreground) return;
     if (connectionProblemConfirmed.value) return;
     if (_connectionProblemTimer?.isActive ?? false) return;
     _connectionProblemTimer = Timer(_connectionProblemDelay, () {
-      final stillBroken = ws.status != WsStatus.connected && !_serverReachable;
+      final stillBroken =
+          _foreground && ws.status != WsStatus.connected && !_serverReachable;
       if (!stillBroken) {
         _clearConnectionProblem();
         return;

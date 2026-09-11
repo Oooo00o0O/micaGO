@@ -3259,6 +3259,17 @@ class _MessageBubbleState extends State<_MessageBubble> {
           )
         : messageColumn;
 
+    // C77: screen readers previously heard only the raw body text — no sender,
+    // no time, no delivery state, and media rows announced nothing at all.
+    final semanticLabel = _bubbleSemanticLabel(
+      context,
+      message: message,
+      body: bodyText,
+      senderName: showGroupSender ? senderText : null,
+      fromMe: fromMe,
+      attachmentCount: message.attachments.length,
+    );
+
     final bubbleContent = Align(
       alignment: fromMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -3289,7 +3300,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
             DateTime.fromMillisecondsSinceEpoch(message.dateCreated!),
           );
 
-    return SizedBox(
+    return Semantics(
+      container: true,
+      label: semanticLabel,
+      child: SizedBox(
       width: double.infinity,
       child: Stack(
         alignment: Alignment.centerRight,
@@ -3321,8 +3335,62 @@ class _MessageBubbleState extends State<_MessageBubble> {
           ),
         ],
       ),
+      ),
     );
   }
+}
+
+/// C77: one spoken sentence per bubble — who sent it, what it says (or what it
+/// carries), when, and its delivery state.
+String _bubbleSemanticLabel(
+  BuildContext context, {
+  required MessageModel message,
+  required String? body,
+  required String? senderName,
+  required bool fromMe,
+  required int attachmentCount,
+}) {
+  final strings = MicaLocalizations.of(context);
+  final parts = <String>[
+    fromMe
+        ? strings.t('chat.a11ySentByYou')
+        : (senderName != null && senderName.isNotEmpty
+              ? senderName
+              : strings.t('chat.a11yReceived')),
+  ];
+  if (body != null && body.trim().isNotEmpty) {
+    parts.add(body.trim());
+  } else if (attachmentCount > 0) {
+    parts.add(
+      attachmentCount == 1
+          ? strings.t('chat.a11yAttachment')
+          : strings
+                .t('chat.a11yAttachments')
+                .replaceAll('{n}', '$attachmentCount'),
+    );
+  }
+  final ts = message.dateCreated;
+  if (ts != null) {
+    parts.add(
+      _threadTimestampLabel(
+        context,
+        DateTime.fromMillisecondsSinceEpoch(ts),
+      ),
+    );
+  }
+  if (fromMe) {
+    final state = deliveryStateFor(message);
+    final key = switch (state) {
+      MessageDeliveryState.sending => 'chat.sending',
+      MessageDeliveryState.sent => 'chat.sent',
+      MessageDeliveryState.delivered => 'chat.delivered',
+      MessageDeliveryState.read => 'chat.read',
+      MessageDeliveryState.failed => 'chat.notDelivered',
+      _ => null,
+    };
+    if (key != null) parts.add(strings.t(key));
+  }
+  return parts.join(', ');
 }
 
 class _IosBubblePainter extends CustomPainter {

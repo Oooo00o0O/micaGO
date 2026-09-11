@@ -678,6 +678,12 @@ func TestTestNotificationsSendsToFcmDevices(t *testing.T) {
 func ptr[T any](v T) *T { return &v }
 
 func TestGetServerStatus(t *testing.T) {
+	original := probeAutomation
+	probeAutomation = func(context.Context) micasend.AutomationStatus {
+		return micasend.AutomationStatus{Status: "denied", Detail: "stubbed"}
+	}
+	t.Cleanup(func() { probeAutomation = original })
+
 	devices := &stubDeviceStore{devices: map[string]store.DeviceRecord{
 		"d1": {ID: "d1", Name: "One"},
 		"d2": {ID: "d2", Name: "Two"},
@@ -758,8 +764,10 @@ func TestGetServerStatus(t *testing.T) {
 	if !contains(status.Notifications.Stub, "fcm") {
 		t.Fatalf("expected fcm in stub list, got %v", status.Notifications.Stub)
 	}
-	if status.Permissions.Automation.Status != "unknown" {
-		t.Fatalf("expected automation unknown, got %q", status.Permissions.Automation.Status)
+	// C79: Automation is a real probe now, so stub it — asserting the host
+	// Mac's actual grant would make this test machine-dependent.
+	if status.Permissions.Automation.Status != "denied" {
+		t.Fatalf("expected the stubbed automation status, got %q", status.Permissions.Automation.Status)
 	}
 }
 

@@ -28,6 +28,45 @@ class MediaCache {
   Directory? _dir;
   final Map<String, Future<Uint8List>> _inflight = {};
 
+  /// C77: a bounded fetch gate. Every tile used to fire its own request the
+  /// moment it scrolled into view, so one 9-photo message opened nine parallel
+  /// downloads and a fast scroll queued dozens — starving the ones actually on
+  /// screen. Loads past the limit wait instead of piling onto the socket.
+  static const int _maxConcurrentFetches = 4;
+  int _activeFetches = 0;
+  final List<Completer<void>> _fetchQueue = [];
+
+  Future<void> _acquireFetchSlot() {
+    if (_activeFetches < _maxConcurrentFetches) {
+      _activeFetches++;
+      return Future<void>.value();
+    }
+    final waiter = Completer<void>();
+    _fetchQueue.add(waiter);
+    return waiter.future;
+  }
+
+  void _releaseFetchSlot() {
+    if (_fetchQueue.isNotEmpty) {
+      _fetchQueue.removeAt(0).complete();
+      return;
+    }
+    if (_activeFetches > 0) _activeFetches--;
+  }
+
+  /// C77: remembers each attachment's decoded aspect ratio (width / height).
+  /// The first view of an image cannot know its shape before the bytes arrive,
+  /// but every later view — scrolling back, reopening the thread — can reserve
+  /// exactly the right box, so the placeholder no longer resizes into place.
+  final Map<String, double> _aspectRatios = {};
+
+  double? aspectRatioFor(String key) => _aspectRatios[key];
+
+  void rememberAspectRatio(String key, double ratio) {
+    if (key.isEmpty || !ratio.isFinite || ratio <= 0) return;
+    _aspectRatios[key] = ratio;
+  }
+
   /// C66: bytes for *pending local sends* (`local-<tempId>` attachment guids),
   /// pinned outside the evictable LRU. A pending bubble must always hit
   /// synchronously — falling through to the FutureBuilder meant a spinner (and
@@ -120,7 +159,13 @@ class MediaCache {
         // Disk problems fall through to the network.
       }
     }
-    final bytes = await fetch();
+    await _acquireFetchSlot();
+    final Uint8List bytes;
+    try {
+      bytes = await fetch();
+    } finally {
+      _releaseFetchSlot();
+    }
     _memoryCache[key] = bytes;
     unawaited(_writeDisk(key, bytes));
     return bytes;

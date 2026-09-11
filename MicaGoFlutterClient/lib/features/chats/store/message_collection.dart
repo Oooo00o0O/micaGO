@@ -69,17 +69,46 @@ class MessageCollection {
     _invalidate();
   }
 
-  /// Replaces the confirmed set with a freshly fetched page (newest-first or
-  /// any order; we key by guid). Pending sends are kept and reconciled.
-  void replaceServerPage(Iterable<MessageModel> page) {
-    _server.clear();
+  /// C78: applies a freshly fetched page **without** dropping rows that arrived
+  /// while it was in flight.
+  ///
+  /// [replaceServerPage] clears the whole confirmed set first, so any realtime
+  /// message delivered during the fetch vanished when the page landed (and a
+  /// merged view multiplies the fetch time, widening that window per route).
+  /// Rules, mirroring the Windows client's MergeSnapshot: page rows win; local
+  /// rows the page does not contain survive when they are newer than the
+  /// page's own window (live arrivals); older absent rows are dropped so
+  /// server-side deletes still disappear.
+  void mergeServerPage(Iterable<MessageModel> page) {
+    final incoming = <String, MessageModel>{};
     for (final m in page) {
       if (m.guid.isNotEmpty) {
-        _server[m.guid] = m;
+        incoming[m.guid] = m;
       } else if (m.tempId != null) {
         _pending[m.tempId!] = m;
       }
     }
+    if (incoming.isEmpty) {
+      // An empty page says nothing about what is already on screen.
+      _reconcilePending();
+      _invalidate();
+      return;
+    }
+    var floor = incoming.values.first.dateCreated ?? 0;
+    for (final m in incoming.values) {
+      final at = m.dateCreated ?? 0;
+      if (at < floor) floor = at;
+    }
+    final survivors = <String, MessageModel>{
+      for (final entry in _server.entries)
+        if (!incoming.containsKey(entry.key) &&
+            (entry.value.dateCreated ?? 0) >= floor)
+          entry.key: entry.value,
+    };
+    _server
+      ..clear()
+      ..addAll(survivors)
+      ..addAll(incoming);
     _reconcilePending();
     _invalidate();
   }

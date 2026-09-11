@@ -577,7 +577,11 @@ func scanRelayMessages(rows *sql.Rows) ([]store.MessageJSON, error) {
 	for rows.Next() {
 		var message store.MessageJSON
 		var handleID, handleService *string
-		var isFromMe, isRead, isDelivered, hasAttachments, hasAttributedBody int64
+		// C79: real chat.db rows store these flags as NULL on many messages, and
+		// a plain int64 scan fails the whole query ("converting NULL to int64 is
+		// unsupported"). Same defect class as C32, which once made startup sync
+		// fatal — NULL simply means false.
+		var isFromMe, isRead, isDelivered, hasAttachments, hasAttributedBody sql.NullInt64
 		var payloadPresent sql.NullInt64
 		if err := rows.Scan(
 			&message.GUID,
@@ -613,12 +617,12 @@ func scanRelayMessages(rows *sql.Rows) ([]store.MessageJSON, error) {
 			return nil, err
 		}
 
-		message.IsFromMe = isFromMe != 0
-		message.IsRead = isRead != 0
-		message.IsDelivered = isDelivered != 0
-		message.CacheHasAttachments = hasAttachments != 0
+		message.IsFromMe = isFromMe.Valid && isFromMe.Int64 != 0
+		message.IsRead = isRead.Valid && isRead.Int64 != 0
+		message.IsDelivered = isDelivered.Valid && isDelivered.Int64 != 0
+		message.CacheHasAttachments = hasAttachments.Valid && hasAttachments.Int64 != 0
 		message.ServiceCategory = ServiceCategory(message.Service)
-		message.HasAttributedBody = hasAttributedBody != 0
+		message.HasAttributedBody = hasAttributedBody.Valid && hasAttributedBody.Int64 != 0
 		message.PayloadDataPresent = payloadPresent.Valid && payloadPresent.Int64 != 0
 		message.IsRetracted = message.DateRetracted != nil
 		message.IsEdited = message.DateEdited != nil

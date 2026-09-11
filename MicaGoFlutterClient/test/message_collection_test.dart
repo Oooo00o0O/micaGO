@@ -244,15 +244,42 @@ void main() {
   });
 
   group('pages', () {
-    test('replaceServerPage keeps pending and reconciles matches', () {
+    test('mergeServerPage keeps pending and reconciles matches', () {
       final c = MessageCollection();
       c.addPending(_optimistic('t1', 'kept', 1000));
       c.addPending(_optimistic('t2', 'matched', 1000));
-      c.replaceServerPage([
+      c.mergeServerPage([
         _server(guid: 's1', text: 'matched', isFromMe: true, dateCreated: 1000),
       ]);
       expect(c.pendingByTempId('t2'), isNull); // reconciled
       expect(c.pendingByTempId('t1'), isNotNull); // kept
+    });
+
+    // C78: a page in flight must not wipe messages delivered while it loaded —
+    // the merged view multiplies that window by the number of routes.
+    test('mergeServerPage keeps rows that arrived during the fetch', () {
+      final c = MessageCollection();
+      c.upsertServer(_server(guid: 'old', dateCreated: 1000));
+      c.upsertServer(_server(guid: 'live', dateCreated: 3000));
+      // The page was taken before 'live' existed.
+      c.mergeServerPage([_server(guid: 'old', dateCreated: 1000)]);
+      expect(c.ordered.map((m) => m.guid).toList(), ['old', 'live']);
+    });
+
+    test('mergeServerPage drops rows deleted server-side', () {
+      final c = MessageCollection();
+      c.upsertServer(_server(guid: 'gone', dateCreated: 1000));
+      c.upsertServer(_server(guid: 'kept', dateCreated: 2000));
+      // A page covering the same window that no longer lists 'gone'.
+      c.mergeServerPage([_server(guid: 'kept', dateCreated: 2000)]);
+      expect(c.ordered.map((m) => m.guid).toList(), ['kept']);
+    });
+
+    test('an empty page never clears the thread', () {
+      final c = MessageCollection();
+      c.upsertServer(_server(guid: 'a', dateCreated: 1000));
+      c.mergeServerPage(const []);
+      expect(c.ordered.map((m) => m.guid).toList(), ['a']);
     });
 
     test('mergeOlder does not drop newer messages', () {

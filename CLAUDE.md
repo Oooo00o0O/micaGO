@@ -152,6 +152,83 @@ Three components:
   opt-out), so builds keep working; the warning clears itself when the
   plugin authors migrate.
 
+## Message-actions copy/uninstall + real Automation probe (C79, v0.69.0)
+
+- **Message Actions on macOS 26+.** The card advertised "Install helper" on a
+  Mac where the private IMCore APIs are blocked outright, and there was no way
+  to remove a helper installed on an older system. Now: the platform warning is
+  definitive ("macOS 26 (Tahoe) and newer block the private IMCore APIs … 
+  everything else is unaffected"), the `unsupported_selectors` headline reads
+  "Not available on this version of macOS", **Install is hidden when the
+  platform rules it out** (`blockedByPlatform`), and an **Uninstall helper**
+  button (destructive role, shown whenever a binary exists in `~/.micago/bin`)
+  calls the new `IMCoreHelperInstaller.uninstall()` + `AppModel.
+  uninstallIMCoreHelper()`, which re-scans so the card updates immediately.
+- **Permission Diagnostics → Automation was hardcoded `"unknown"`.** It is now a
+  real probe (`internal/send/automation.go`): a read-only
+  `tell application "Messages" to get name`, gated on Messages already running
+  (reusing the send path's `MessagesRunning` pgrep check, since an AppleScript
+  `tell` would otherwise launch Messages), classified by macOS's own answer —
+  `-1743` / "not authorized to send apple events" → **denied**, success →
+  **ok**, anything else stays **unknown** (never a false denial). Cached 60s
+  because the dashboard polls every few seconds and each probe spawns
+  osascript; `InvalidateAutomationProbe()` forces a re-check. Verified live on
+  this Mac (returns `ok`). The handler's probe is an injectable var so the
+  status test doesn't depend on the host's real grant.
+- **Pre-existing NULL-scan bug fixed (found by the failing suite).**
+  `scanRelayMessages` scanned `is_from_me/is_read/is_delivered/
+  cache_has_attachments/has_attributed_body` into plain `int64`, so
+  `ListMergedMessages` failed with "converting NULL to int64 is unsupported" on
+  real chat.db rows — the same defect class as C32, which once made startup sync
+  fatal. All five now scan through `sql.NullInt64` (NULL → false).
+- Version bumped to **0.69.0** across pubspec (+69), `kAppVersion`, `version.go`,
+  Companion + Flutter iOS/macOS `MARKETING_VERSION`, `package-dmg.sh`, and the
+  Windows `Directory.Build.props`.
+
+## Thread loading races + keyboard/watchdog lifecycle + media polish (C77/C78)
+
+- **`load()` had no re-entrancy guard (C78, the real "互相抢").** Seven triggers
+  (start, pull-to-refresh, retry, the debounced WS fallback ×4, post-action
+  refresh) could run concurrently and each ended in a clear+replace of the whole
+  message set, so the *slower* — possibly staler — run won. Fixed with
+  `AsyncCache.ephemeral()` from **package:async** (Dart team; promoted from a
+  transitive dep to a direct one): the body runs at most once concurrently and
+  every caller awaits the same result. No hand-rolled mutex.
+- **Pages no longer wipe live rows.** `MessageCollection.replaceServerPage`
+  (clear-then-fill) is **deleted**; `mergeServerPage` keeps local rows the page
+  doesn't contain when they are newer than the page's own window, drops older
+  absent rows (so server deletes still apply), and treats an empty page as "no
+  information" instead of "delete everything". Same rule as the Windows client's
+  `MessageSemantics.MergeSnapshot`.
+- **Merged view pages every route.** `_routeOffsets` / `_routesWithMore` replace
+  the single `_offset`; `loadOlder` pages all routes that still have history and
+  `hasMore` is their union — previously only the primary route paged, so a
+  merged conversation could only ever show one source's history ("只能加载某一
+  信息源"). Route fetches now run through `Future.wait` instead of sequentially.
+- **Dispose safety:** switching routes disposes the controller while a load may
+  still be in flight; a `_disposed` flag now guards every await-resume point and
+  all 19 `notifyListeners()` calls go through `_notify()`.
+- **C77 keyboard inset across lock/unlock.** `resizeToAvoidBottomInset:false` and
+  `KeyboardInsetGuard` were already in place, but the guard only stripped a
+  stale inset when *nothing* had editable focus — and Android restores IME focus
+  to the field on resume **without** re-showing the keyboard, so the stale
+  `viewInsets.bottom` (flutter#179208 / #163502) was trusted again and reserved
+  a phantom keyboard ("界面被切成两半"). New global `KeyboardLifecycle` observer
+  unfocuses on **both** directions of every lifecycle change, insets are trusted
+  only while `isResumed && hasEditableFocus`, plus a settled-metrics rebuild
+  after resume.
+- **C77 false "can't reach server" dialog after unlock.** Locking cuts the
+  network while Dart timers are paused/throttled, so the 10s watchdog elapsed
+  during the lock and the dialog was already waiting at unlock. `setForeground`
+  now cancels the countdown and clears the confirmed state on background, and
+  re-arms from zero on resume; the timer body also re-checks `_foreground`.
+- **C77 media:** images render `BoxFit.contain` (the 306px cap + `cover` was
+  cropping tall photos); `MediaCache` gained a 4-way concurrent-fetch gate (a
+  9-photo message opened 9 parallel downloads) and remembers each attachment's
+  decoded aspect ratio so repeat views size the placeholder exactly.
+- **C77 a11y:** every bubble carries a `Semantics` label — sender, body (or
+  "N attachments"), time, delivery state — in all three locales.
+
 ## Connection-UI consolidation + notification/composer/LAN fixes (C75, client-only)
 
 - **断链提醒整合.** Three surfaces used to compete (transient TopBanner, sticky

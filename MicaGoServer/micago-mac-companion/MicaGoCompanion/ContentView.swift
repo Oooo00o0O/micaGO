@@ -762,6 +762,15 @@ private struct CapabilityRow: View {
 private struct MessageActionsCard: View {
     @EnvironmentObject var model: AppModel
 
+    /// True when this macOS itself rules the actions out (either below the
+    /// minimum, or new enough that the private IMCore APIs are blocked), so the
+    /// card must not advertise an install that can never succeed.
+    private var blockedByPlatform: Bool {
+        guard let actions = model.status?.messageActions else { return false }
+        if actions.platformSupported == false { return true }
+        return !(actions.platformWarning ?? "").isEmpty && !actions.available
+    }
+
     var body: some View {
         SectionCard(title: "Message Actions (Edit / Unsend / Delete)") {
             if let actions = model.status?.messageActions {
@@ -796,8 +805,11 @@ private struct MessageActionsCard: View {
                     Text("Helper: \(helper)").font(.caption2).foregroundStyle(.tertiary)
                         .textSelection(.enabled)
                 }
-                if !actions.available && actions.platformSupported != false {
-                    HStack(spacing: 8) {
+                // C79: don't offer an install that cannot work. When this macOS
+                // blocks the private IMCore APIs the only useful action is
+                // removing a helper installed on an older system.
+                HStack(spacing: 8) {
+                    if !actions.available && !blockedByPlatform {
                         Button {
                             model.installIMCoreHelper()
                         } label: {
@@ -808,6 +820,8 @@ private struct MessageActionsCard: View {
                             }
                         }
                         .disabled(model.helperInstalling)
+                    }
+                    if !actions.available || blockedByPlatform {
                         // Manual re-scan: force a fresh probe without re-installing
                         // (e.g. after manually placing the helper).
                         Button {
@@ -816,10 +830,18 @@ private struct MessageActionsCard: View {
                             Label("Re-scan", systemImage: "arrow.clockwise")
                         }
                         .disabled(model.helperInstalling)
-                        Spacer()
                     }
-                    .padding(.top, 2)
+                    if model.helperInstalledOnDisk {
+                        Button(role: .destructive) {
+                            model.uninstallIMCoreHelper()
+                        } label: {
+                            Label("Uninstall helper", systemImage: "trash")
+                        }
+                        .disabled(model.helperInstalling)
+                    }
+                    Spacer()
                 }
+                .padding(.top, 2)
                 if let msg = model.helperInstallMessage, !msg.isEmpty {
                     Text(msg).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -849,7 +871,7 @@ private struct HelperUIState {
             headline = "Helper installed but not runnable"
         case "unsupported_selectors":
             icon = "exclamationmark.triangle.fill"; color = .orange
-            headline = "Helper runs, but these actions aren’t supported on this macOS"
+            headline = "Not available on this version of macOS"
         default: // missing or unknown
             icon = "arrow.down.circle"; color = .secondary
             headline = "IMCore helper not installed — these actions are hidden in the app"
