@@ -25,6 +25,13 @@ class MessageDelta {
   });
 }
 
+class MessageHistoryPage {
+  final List<MessageModel> messages;
+  final String? nextCursor;
+  final bool hasMore;
+  const MessageHistoryPage(this.messages, this.nextCursor, this.hasMore);
+}
+
 class TestContactConfig {
   final bool available;
   final bool enabled;
@@ -482,16 +489,6 @@ class ApiClient {
           )
           .timeout(timeout),
     );
-    if (res.statusCode == 202) {
-      final body = _decodeObject(res);
-      throw ApiException(
-        code: 'send_confirmation_timeout',
-        message:
-            (body['message'] as String?) ??
-            'Message sent, but server confirmation is still pending.',
-        statusCode: res.statusCode,
-      );
-    }
     if (res.statusCode != 200) {
       throw _errorFrom(res);
     }
@@ -506,6 +503,48 @@ class ApiClient {
         .whereType<Map<String, dynamic>>()
         .map(MessageModel.fromJson)
         .toList(growable: false);
+  }
+
+  Future<MessageHistoryPage> getMessageHistory(
+    Iterable<String> routes, {
+    int limit = 50,
+    String? before,
+  }) async {
+    final uri = _uri('/api/messages/history').replace(
+      queryParameters: {
+        'chatGuid': routes.toSet().toList(),
+        'limit': '$limit',
+        'before': ?before,
+      },
+    );
+    final response = await _send(
+      () => _http.get(uri, headers: _authHeaders).timeout(timeout),
+    );
+    if (response.statusCode != 200) throw _errorFrom(response);
+    final body = _decodeObject(response);
+    final rows = body['data'];
+    if (rows is! List || body['hasMore'] is! bool) {
+      throw const ApiException(
+        code: 'bad_response',
+        message: 'Invalid message history response',
+      );
+    }
+    final cursor = body['nextCursor'] as String?;
+    final hasMore = body['hasMore'] as bool;
+    if (hasMore && (cursor == null || cursor.isEmpty)) {
+      throw const ApiException(
+        code: 'bad_response',
+        message: 'Missing message history cursor',
+      );
+    }
+    return MessageHistoryPage(
+      rows
+          .whereType<Map<String, dynamic>>()
+          .map(MessageModel.fromJson)
+          .toList(growable: false),
+      cursor,
+      hasMore,
+    );
   }
 
   /// `POST /api/chats/{guid}/send` — send plain text. Synchronous: the server
@@ -526,6 +565,16 @@ class ApiClient {
           // Send confirmation can take up to ~15s server-side.
           .timeout(const Duration(seconds: 20)),
     );
+    if (res.statusCode == 202) {
+      final body = _decodeObject(res);
+      throw ApiException(
+        code: 'send_confirmation_timeout',
+        message:
+            (body['message'] as String?) ??
+            'Message sent, but server confirmation is still pending.',
+        statusCode: res.statusCode,
+      );
+    }
     if (res.statusCode != 200) {
       throw _errorFrom(res);
     }
@@ -764,7 +813,8 @@ class ApiClient {
   Future<String?> sendAttachment({
     required String chatGuid,
     required String tempGuid,
-    required Uint8List bytes,
+    Uint8List? bytes,
+    String? filePath,
     required String filename,
     bool isAudioMessage = false,
     void Function(int sent, int total)? onSendProgress,
@@ -779,8 +829,17 @@ class ApiClient {
     if (isAudioMessage) {
       request.fields['isAudioMessage'] = 'true';
     }
+    if ((bytes == null) == (filePath == null)) {
+      throw ArgumentError('Provide exactly one attachment source');
+    }
     request.files.add(
-      http.MultipartFile.fromBytes('file', bytes, filename: filename),
+      filePath != null
+          ? await http.MultipartFile.fromPath(
+              'file',
+              filePath,
+              filename: filename,
+            )
+          : http.MultipartFile.fromBytes('file', bytes!, filename: filename),
     );
 
     final http.Response res;
@@ -788,7 +847,9 @@ class ApiClient {
       final streamed = await _http
           .send(request)
           .timeout(const Duration(seconds: 60));
-      res = await http.Response.fromStream(streamed);
+      res = await http.Response.fromStream(
+        streamed,
+      ).timeout(const Duration(seconds: 30));
     } on TimeoutException {
       throw const ApiException(
         code: 'timeout',
@@ -826,20 +887,14 @@ class ApiClient {
   Future<Uint8List> getAttachmentPreviewBytes(
     AttachmentModel attachment,
   ) async {
-    final preview = attachment.previewUrl;
-    if (preview == null || preview.isEmpty) {
-      return getAttachmentBytes(attachment.guid);
-    }
-    final path = preview.startsWith('/') ? preview : '/$preview';
+    final path =
+        '/api/attachments/${Uri.encodeComponent(attachment.guid)}/preview';
     final res = await _send(
       () => _http
           .get(_uri(path), headers: {'Authorization': 'Bearer $token'})
           .timeout(const Duration(seconds: 30)),
     );
     if (res.statusCode != 200) {
-      if (attachment.isStickerLike) {
-        return getAttachmentBytes(attachment.guid);
-      }
       throw _errorFrom(res);
     }
     return res.bodyBytes;
@@ -861,9 +916,7 @@ class ApiClient {
           .timeout(const Duration(seconds: 30)),
     );
     if (res.statusCode != 200) {
-      // Older backends do not understand every preview format. Preserve the
-      // previous fallback while paired versions roll forward independently.
-      return getAttachmentPreviewBytes(attachment);
+      throw _errorFrom(res);
     }
     return res.bodyBytes;
   }

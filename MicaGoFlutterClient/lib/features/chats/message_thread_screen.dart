@@ -26,16 +26,17 @@ import 'package:photo_manager/photo_manager.dart';
 
 import '../contacts/contacts_service.dart';
 import 'attachment_panel.dart';
+import 'chat_composer_input.dart';
 import 'attachment_views.dart';
 import 'avatar.dart';
 import 'avatar_crop_screen.dart';
 import 'chat_service.dart';
 import '../settings/message_display_controller.dart';
-import 'diagnostics_store.dart';
 import 'emoji_text.dart';
 import 'message_debug_sheet.dart';
 import 'message_display.dart';
 import 'message_render.dart';
+import 'message_transfer_frame.dart';
 import 'media_viewer.dart';
 import 'send_effects.dart';
 import 'models/chat_summary.dart';
@@ -79,8 +80,14 @@ class MessageThreadScreen extends StatefulWidget {
 class _MessageThreadScreenState extends State<MessageThreadScreen>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   late ThreadController _controller;
+  Object? _presentationSignature;
+  List<ThreadViewItem> _presentationItems = const [];
+  List<AttachmentModel> _threadImages = const [];
+  Map<String, int> _rowIndices = const {};
+  String? _reportedThreadError;
   final _scroll = ScrollController();
   final _composer = TextEditingController();
+  final _composerHasText = ValueNotifier<bool>(false);
   final Map<String, GlobalKey> _messageKeys = {};
   late final ConfettiController _confettiController;
   final SendEffectController _sendEffects = SendEffectController();
@@ -132,6 +139,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
   @override
   void initState() {
     super.initState();
+    _composer.addListener(_onComposerTextChanged);
     _confettiController = ConfettiController(
       duration: const Duration(milliseconds: 1400),
     );
@@ -182,9 +190,8 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
       }
     });
     _controller = _createController(app, _active)..start();
-    _composer.addListener(() => setState(() {}));
     _scroll.addListener(_onScroll);
-    _controller.addListener(_publishDiagnostics);
+    _controller.addListener(_onThreadChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_refreshOtherUnreadChats());
     });
@@ -256,7 +263,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
   // real GUID. Staged attachments carry over; the composer text is preserved.
   void _switchRoute(ChatSummary route) {
     if (route.guid == _active.guid) return;
-    _controller.removeListener(_publishDiagnostics);
+    _controller.removeListener(_onThreadChanged);
     _controller.dispose();
     final app = context.read<AppController>();
     app.setActiveChatGuids(_routeGuids);
@@ -264,7 +271,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     setState(() {
       _active = route;
       _controller = _createController(app, route)..start();
-      _controller.addListener(_publishDiagnostics);
+      _controller.addListener(_onThreadChanged);
     });
   }
 
@@ -288,12 +295,12 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
 
   /// Rebuilds the controller in place after the merged-view toggle changes.
   void _rebuildActiveController() {
-    _controller.removeListener(_publishDiagnostics);
+    _controller.removeListener(_onThreadChanged);
     _controller.dispose();
     final app = context.read<AppController>();
     setState(() {
       _controller = _createController(app, _active)..start();
-      _controller.addListener(_publishDiagnostics);
+      _controller.addListener(_onThreadChanged);
     });
   }
 
@@ -303,10 +310,11 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     _seenWsSub?.cancel();
     _seenDeltaSub?.cancel();
     _scroll.removeListener(_onScroll);
-    _controller.removeListener(_publishDiagnostics);
+    _controller.removeListener(_onThreadChanged);
     _controller.dispose();
     _scroll.dispose();
     _composer.dispose();
+    _composerHasText.dispose();
     _confettiController.dispose();
     _timestampRevealController.dispose();
     _selectModeController.dispose();
@@ -319,14 +327,20 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     super.dispose();
   }
 
-  // Recompute per-thread compatibility diagnostics whenever the message list
-  // changes, so the Settings → Message Compatibility Diagnostics page reflects
-  // the open thread. Done after the frame to avoid notifying during build.
-  void _publishDiagnostics() {
-    final msgs = _controller.messages;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      lastThreadDiagnostics.value = computeThreadDiagnostics(msgs);
-    });
+  void _onComposerTextChanged() {
+    _composerHasText.value = _composer.text.trim().isNotEmpty;
+  }
+
+  void _onThreadChanged() {
+    final error = _controller.error;
+    if (error != null &&
+        error != _reportedThreadError &&
+        _controller.state == ThreadState.loaded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) TopBanner.show(context, error, kind: TopBannerKind.error);
+      });
+    }
+    _reportedThreadError = error;
   }
 
   // The list is reversed (newest at the bottom), so the *top* of the history is
@@ -513,25 +527,48 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
 
   // Toggle a gallery asset in/out of the staged selection (multi-select), like
   // BlueBubbles' tap-to-select. Keeps the panel open so more can be selected.
+  final Set<String> _selectingAssets = {};
+
   Future<void> _toggleAsset(AssetEntity asset) async {
-    final existing = _staged.indexWhere((s) => s.sourceId == asset.id);
-    if (existing >= 0) {
-      setState(() => _staged.removeAt(existing));
-      return;
-    }
-    final bytes = await asset.originBytes;
-    if (bytes == null) return;
-    final name = await asset.titleAsync;
-    if (!mounted) return;
-    setState(() {
-      _staged.add(
-        StagedAttachment(
-          bytes: bytes,
-          filename: name.isNotEmpty ? name : '${asset.id}.jpg',
-          sourceId: asset.id,
-        ),
+    if (!_selectingAssets.add(asset.id)) return;
+    try {
+      final existing = _staged.indexWhere((s) => s.sourceId == asset.id);
+      if (existing >= 0) {
+        setState(() => _staged.removeAt(existing));
+        return;
+      }
+      final file = await asset.originFile;
+      if (file == null) return;
+      final size = await file.length();
+      final aspect = asset.width / asset.height;
+      final thumbnail = await asset.thumbnailDataWithSize(
+        ThumbnailSize(360, (360 / aspect).round().clamp(1, 1440)),
       );
-    });
+      final name = await asset.titleAsync;
+      if (!mounted) return;
+      setState(() {
+        _staged.add(
+          StagedAttachment.file(
+            path: file.path,
+            size: size,
+            thumbnail: thumbnail,
+            previewAspectRatio: aspect,
+            filename: name.isNotEmpty ? name : '${asset.id}.jpg',
+            sourceId: asset.id,
+          ),
+        );
+      });
+    } catch (error) {
+      if (mounted) {
+        TopBanner.show(
+          context,
+          'Could not prepare attachment: $error',
+          kind: TopBannerKind.error,
+        );
+      }
+    } finally {
+      _selectingAssets.remove(asset.id);
+    }
   }
 
   void _removeStaged(int index) {
@@ -543,14 +580,16 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
   Future<void> _send() async {
     final text = _composer.text.trim();
     final staged = List<StagedAttachment>.from(_staged);
+    final controller = _controller;
+    if (controller.attachmentSending && staged.isNotEmpty) return;
+    if (text.isNotEmpty && _canSendText) {
+      _composer.clear();
+      unawaited(controller.send(text));
+    }
     if (staged.isNotEmpty && _canSendAttachments) {
       setState(() => _staged.clear());
-      await _controller.sendAttachments(staged);
+      await controller.sendAttachments(staged);
       if (mounted) _showAttachErrorIfAny();
-    }
-    if (text.isNotEmpty && _canSendText) {
-      _controller.send(text);
-      _composer.clear();
     }
   }
 
@@ -729,14 +768,13 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
                 onSend: _sendVoice,
               )
             : ListenableBuilder(
-                listenable: _controller,
+                listenable: Listenable.merge([_controller, _composerHasText]),
                 builder: (context, _) => _Composer(
                   controller: _composer,
                   service: _effectiveService,
                   serviceCanSend: canSend,
                   // Send is enabled when there's text OR staged attachments.
-                  canSend:
-                      _composer.text.trim().isNotEmpty || _staged.isNotEmpty,
+                  canSend: _composerHasText.value || _staged.isNotEmpty,
                   onSend: _send,
                   attachmentSending: _controller.attachmentSending,
                   attachOpen: _attachOpen,
@@ -810,21 +848,19 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
           left: 0,
           right: 0,
           bottom: 0,
-          child: AnimatedPadding(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
+          child: Padding(
             padding: EdgeInsets.only(bottom: _keyboardInset(context)),
             child: _MeasuredHeight(
               onChanged: _onBottomOverlayHeightChanged,
               child: _selectMode
-                ? _SelectionActionBar(
-                    count: _selectedGuids.length,
-                    onForward: api == null || _selectedGuids.isEmpty
-                        ? null
-                        : () => _forwardSelected(api),
-                    onHide: _selectedGuids.isEmpty ? null : _hideSelected,
-                    onClose: _exitSelectMode,
-                  )
+                  ? _SelectionActionBar(
+                      count: _selectedGuids.length,
+                      onForward: api == null || _selectedGuids.isEmpty
+                          ? null
+                          : () => _forwardSelected(api),
+                      onHide: _selectedGuids.isEmpty ? null : _hideSelected,
+                      onClose: _exitSelectMode,
+                    )
                   : bottomOverlay,
             ),
           ),
@@ -1110,20 +1146,43 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
         // separators). The hot itemBuilder below only renders.
         final localeTag = Localizations.maybeLocaleOf(context)?.toLanguageTag();
         final use24HourFormat = MediaQuery.alwaysUse24HourFormatOf(context);
-        final items = ThreadPresentationBuilder.build(
-          messages: _controller.messages,
-          prefs: prefs,
-          isGroup: _active.isGroup,
-          resolveName: contacts.displayNameFor,
-          loadingOlder: _controller.loadingOlder,
-          use24HourFormat: use24HourFormat,
-          localeTag: localeTag,
-          resolvePresentationKey: _controller.presentationKeyFor,
+        final now = DateTime.now();
+        final signature = (
+          _controller,
+          _controller.messages,
+          prefs,
+          contacts.index,
+          _active.isGroup,
+          _controller.loadingOlder,
+          use24HourFormat,
+          localeTag,
+          now.year,
+          now.month,
+          now.day,
         );
-        final threadImages = _controller.messages
-            .expand((m) => m.attachments)
-            .where((a) => a.canRenderInlineImage)
-            .toList(growable: false);
+        if (_presentationSignature != signature) {
+          _presentationSignature = signature;
+          _presentationItems = ThreadPresentationBuilder.build(
+            messages: _controller.messages,
+            prefs: prefs,
+            isGroup: _active.isGroup,
+            resolveName: contacts.displayNameFor,
+            loadingOlder: _controller.loadingOlder,
+            use24HourFormat: use24HourFormat,
+            localeTag: localeTag,
+            resolvePresentationKey: _controller.presentationKeyFor,
+          );
+          _threadImages = _controller.messages
+              .expand((m) => m.attachments)
+              .where((a) => a.canRenderInlineImage)
+              .toList(growable: false);
+          _rowIndices = {
+            for (var i = 0; i < _presentationItems.length; i++)
+              _presentationItems[i].key: _presentationItems.length - 1 - i,
+          };
+        }
+        final items = _presentationItems;
+        final threadImages = _threadImages;
         // C63: the first loaded render seeds the entrance baseline — history
         // must never animate in, only rows that appear after this.
         if (!_entranceBaselineTaken) {
@@ -1145,6 +1204,8 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
             reverse: true,
             padding: EdgeInsets.fromLTRB(8, 8, 8, _bottomInset(context)),
             itemCount: items.length,
+            findChildIndexCallback: (key) =>
+                key is ValueKey<String> ? _rowIndices[key.value] : null,
             itemBuilder: (context, i) {
               final item = items[items.length - 1 - i];
               return KeyedSubtree(
@@ -2137,7 +2198,10 @@ Future<void> showMessageActionMenu(
         context,
         () => api.deleteMessage(chatGuid, message.guid),
         success: 'Delete queued',
-        onChanged: onChanged,
+        onChanged: () async {
+          await onHide?.call();
+          await onChanged?.call();
+        },
       );
       break;
     case MessageAction.deletePending:
@@ -3141,36 +3205,15 @@ class _MessageBubbleState extends State<_MessageBubble> {
         message.hasAttachments &&
         message.tempId != null &&
         message.localState == LocalSendState.failed;
-    final Widget statusBubble;
-    if (sendingUpload) {
-      statusBubble = Stack(
-        alignment: Alignment.center,
-        children: [
-          effectedBubble,
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
-          ),
-          IgnorePointer(child: _UploadProgressBadge(progress: uploadProgress)),
-        ],
-      );
-    } else if (failedAttachmentSend) {
-      statusBubble = Stack(
-        alignment: Alignment.center,
-        children: [
-          Opacity(opacity: 0.55, child: effectedBubble),
-          _SendFailedBadge(onRetry: widget.onRetry),
-        ],
-      );
-    } else {
-      statusBubble = effectedBubble;
-    }
+    final statusBubble = MessageTransferFrame(
+      dimmed: failedAttachmentSend,
+      overlay: sendingUpload
+          ? IgnorePointer(child: _UploadProgressBadge(progress: uploadProgress))
+          : failedAttachmentSend
+          ? _SendFailedBadge(onRetry: widget.onRetry)
+          : null,
+      child: effectedBubble,
+    );
 
     final messageColumnBody = Column(
       crossAxisAlignment: fromMe
@@ -3304,37 +3347,37 @@ class _MessageBubbleState extends State<_MessageBubble> {
       container: true,
       label: semanticLabel,
       child: SizedBox(
-      width: double.infinity,
-      child: Stack(
-        alignment: Alignment.centerRight,
-        children: [
-          if (timestamp != null)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Opacity(
-                    opacity: widget.timestampRevealProgress,
-                    child: Transform.translate(
-                      offset: Offset(
-                        18 * (1 - widget.timestampRevealProgress),
-                        0,
+        width: double.infinity,
+        child: Stack(
+          alignment: Alignment.centerRight,
+          children: [
+            if (timestamp != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Opacity(
+                      opacity: widget.timestampRevealProgress,
+                      child: Transform.translate(
+                        offset: Offset(
+                          18 * (1 - widget.timestampRevealProgress),
+                          0,
+                        ),
+                        child: _RevealTimestampLabel(label: timestamp),
                       ),
-                      child: _RevealTimestampLabel(label: timestamp),
                     ),
                   ),
                 ),
               ),
+            Transform.translate(
+              offset: Offset(
+                fromMe ? -56 * widget.timestampRevealProgress : 0,
+                0,
+              ),
+              child: bubbleContent,
             ),
-          Transform.translate(
-            offset: Offset(
-              fromMe ? -56 * widget.timestampRevealProgress : 0,
-              0,
-            ),
-            child: bubbleContent,
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -3372,10 +3415,7 @@ String _bubbleSemanticLabel(
   final ts = message.dateCreated;
   if (ts != null) {
     parts.add(
-      _threadTimestampLabel(
-        context,
-        DateTime.fromMillisecondsSinceEpoch(ts),
-      ),
+      _threadTimestampLabel(context, DateTime.fromMillisecondsSinceEpoch(ts)),
     );
   }
   if (fromMe) {
@@ -4281,9 +4321,7 @@ class _VoiceRecordingBarState extends State<_VoiceRecordingBar> {
                     icon: const Icon(Icons.delete_outline),
                   ),
                   Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      curve: Curves.easeOut,
+                    child: Container(
                       height: 48,
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       decoration: BoxDecoration(
@@ -4347,7 +4385,7 @@ class _VoiceRecordingBarState extends State<_VoiceRecordingBar> {
         ],
       ),
     );
-    return SafeArea(top: false, child: bar);
+    return SafeArea(top: false, child: RepaintBoundary(child: bar));
   }
 }
 
@@ -4469,7 +4507,7 @@ class _VoiceReviewBar extends StatelessWidget {
         ],
       ),
     );
-    return SafeArea(top: false, child: bar);
+    return SafeArea(top: false, child: RepaintBoundary(child: bar));
   }
 }
 
@@ -4737,49 +4775,10 @@ class _ComposerState extends State<_Composer> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
-                            child: TextField(
-                              controller: widget.controller,
-                              focusNode: _focus,
-                              minLines: 1,
-                              maxLines: 5,
-                              style: TextStyle(
-                                color: onInput,
-                                fontSize: 18,
-                                height: 1.35,
-                              ),
-                              cursorColor: inputIconColor,
-                              textAlignVertical: TextAlignVertical.center,
-                              textInputAction: TextInputAction.newline,
-                              keyboardType: TextInputType.multiline,
-                              contentInsertionConfiguration:
-                                  ContentInsertionConfiguration(
-                                    allowedMimeTypes: const [
-                                      'image/png',
-                                      'image/gif',
-                                      'image/jpeg',
-                                      'image/jpg',
-                                      'image/bmp',
-                                      'image/tiff',
-                                      'image/webp',
-                                      'image/heic',
-                                      'image/heif',
-                                    ],
-                                    onContentInserted: widget.onContentInserted,
-                                  ),
-                              decoration: InputDecoration(
-                                hintText: _hintText,
-                                hintStyle: TextStyle(
-                                  color: hintColor,
-                                  fontSize: 18,
-                                  height: 1.35,
-                                ),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: const EdgeInsets.only(
-                                  top: 8,
-                                  bottom: 12,
-                                ),
-                              ),
+                            child: _inputField(
+                              onInput,
+                              hintColor,
+                              inputIconColor,
                             ),
                           ),
                           AnimatedSwitcher(
@@ -4846,8 +4845,19 @@ class _ComposerState extends State<_Composer> {
     );
     // SafeArea bottom is applied by the emoji panel when it's open; here the bar
     // keeps its own bottom margin.
-    return SafeArea(top: false, child: bar);
+    return SafeArea(top: false, child: RepaintBoundary(child: bar));
   }
+
+  Widget _inputField(Color onInput, Color hintColor, Color inputIconColor) =>
+      ChatComposerInput(
+        controller: widget.controller,
+        focusNode: _focus,
+        textColor: onInput,
+        hintColor: hintColor,
+        cursorColor: inputIconColor,
+        hint: _hintText,
+        onContentInserted: widget.onContentInserted,
+      );
 
   Widget _buildLiquidComposer(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -4931,49 +4941,10 @@ class _ComposerState extends State<_Composer> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: _focus,
-                        minLines: 1,
-                        maxLines: 5,
-                        style: TextStyle(
-                          color: onInput,
-                          fontSize: 18,
-                          height: 1.35,
-                        ),
-                        cursorColor: _glassBlue(scheme),
-                        textAlignVertical: TextAlignVertical.center,
-                        textInputAction: TextInputAction.newline,
-                        keyboardType: TextInputType.multiline,
-                        contentInsertionConfiguration:
-                            ContentInsertionConfiguration(
-                              allowedMimeTypes: const [
-                                'image/png',
-                                'image/gif',
-                                'image/jpeg',
-                                'image/jpg',
-                                'image/bmp',
-                                'image/tiff',
-                                'image/webp',
-                                'image/heic',
-                                'image/heif',
-                              ],
-                              onContentInserted: widget.onContentInserted,
-                            ),
-                        decoration: InputDecoration(
-                          hintText: _hintText,
-                          hintStyle: TextStyle(
-                            color: hintColor,
-                            fontSize: 18,
-                            height: 1.35,
-                          ),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.only(
-                            top: 9,
-                            bottom: 13,
-                          ),
-                        ),
+                      child: _inputField(
+                        onInput,
+                        hintColor,
+                        _glassBlue(scheme),
                       ),
                     ),
                     AnimatedSwitcher(
@@ -5034,7 +5005,7 @@ class _ComposerState extends State<_Composer> {
         ],
       ),
     );
-    return SafeArea(top: false, child: bar);
+    return SafeArea(top: false, child: RepaintBoundary(child: bar));
   }
 }
 

@@ -15,8 +15,7 @@ import '../network/api_client.dart';
 /// **permanent disk layer** under the same keys (app-support/media_cache, so
 /// Android doesn't purge it like a temp dir; it is only removed with the app's
 /// data): reads go memory → disk → network, and every network fetch is written
-/// through to disk. Sent attachments are [seed]ed directly, so the client
-/// never re-downloads a file it just uploaded.
+/// through to disk.
 ///
 /// Thumbnail, display-preview, and original bytes use distinct versioned keys,
 /// encoded to safe filenames with URL-safe base64. This prevents an old inline
@@ -36,13 +35,17 @@ class MediaCache {
   int _activeFetches = 0;
   final List<Completer<void>> _fetchQueue = [];
 
-  Future<void> _acquireFetchSlot() {
+  Future<void> _acquireFetchSlot({bool urgent = false}) {
     if (_activeFetches < _maxConcurrentFetches) {
       _activeFetches++;
       return Future<void>.value();
     }
     final waiter = Completer<void>();
-    _fetchQueue.add(waiter);
+    if (urgent) {
+      _fetchQueue.insert(0, waiter);
+    } else {
+      _fetchQueue.add(waiter);
+    }
     return waiter.future;
   }
 
@@ -72,6 +75,19 @@ class MediaCache {
   /// synchronously — falling through to the FutureBuilder meant a spinner (and
   /// a doomed network fetch for a guid the server has never heard of).
   final Map<String, Uint8List> _pinned = {};
+  final Map<String, Future<Uint8List> Function()> _localPreviews = {};
+  final Map<String, Future<Uint8List> Function()> _localOriginals = {};
+
+  void registerLocal(
+    String key, {
+    Uint8List? preview,
+    required Future<Uint8List> Function() loadPreview,
+    required Future<Uint8List> Function() loadOriginal,
+  }) {
+    if (preview != null) pinLocal(key, preview);
+    _localPreviews[key] = loadPreview;
+    _localOriginals[key] = loadOriginal;
+  }
 
   void pinLocal(String key, Uint8List bytes) {
     if (key.isEmpty || bytes.isEmpty) return;
@@ -80,6 +96,8 @@ class MediaCache {
 
   void unpinLocal(String key) {
     _pinned.remove(key);
+    _localPreviews.remove(key);
+    _localOriginals.remove(key);
   }
 
   /// Resolves the cache directory once (called from AppController.bootstrap).
@@ -128,14 +146,24 @@ class MediaCache {
 
   /// memory → disk → [fetch] (network), writing through to both layers.
   /// Concurrent loads of the same key share one future.
-  Future<Uint8List> load(String key, Future<Uint8List> Function() fetch) {
+  Future<Uint8List> load(
+    String key,
+    Future<Uint8List> Function() fetch, {
+    bool urgent = false,
+  }) {
     final pinned = _pinned[key];
     if (pinned != null) return Future.value(pinned);
     final mem = _memoryCache[key];
     if (mem != null) return Future.value(mem);
     final running = _inflight[key];
     if (running != null) return running;
-    final future = _loadInner(key, fetch);
+    final local = _localPreviews[key];
+    final future = local == null
+        ? _loadInner(key, fetch, urgent: urgent)
+        : local().then((bytes) {
+            if (identical(_localPreviews[key], local)) _pinned[key] = bytes;
+            return bytes;
+          });
     _inflight[key] = future;
     future.whenComplete(() => _inflight.remove(key)).ignore();
     return future;
@@ -143,8 +171,9 @@ class MediaCache {
 
   Future<Uint8List> _loadInner(
     String key,
-    Future<Uint8List> Function() fetch,
-  ) async {
+    Future<Uint8List> Function() fetch, {
+    required bool urgent,
+  }) async {
     final file = _fileFor(key);
     if (file != null) {
       try {
@@ -159,7 +188,7 @@ class MediaCache {
         // Disk problems fall through to the network.
       }
     }
-    await _acquireFetchSlot();
+    await _acquireFetchSlot(urgent: urgent);
     final Uint8List bytes;
     try {
       bytes = await fetch();
@@ -169,32 +198,6 @@ class MediaCache {
     _memoryCache[key] = bytes;
     unawaited(_writeDisk(key, bytes));
     return bytes;
-  }
-
-  /// The on-disk file for [key], or null when not cached. Used for media that
-  /// plays from a file path (video) rather than from bytes in memory.
-  Future<File?> cachedMediaFile(String key) async {
-    final file = _fileFor(key);
-    if (file == null) return null;
-    try {
-      if (await file.exists() && (await file.length()) > 0) return file;
-    } catch (_) {}
-    return null;
-  }
-
-  /// Downloads [key] to disk in the background when absent (e.g. caching a
-  /// video during its first streamed playback). Never throws.
-  Future<void> cacheToDiskInBackground(
-    String key,
-    Future<Uint8List> Function() fetch,
-  ) async {
-    try {
-      if (await cachedMediaFile(key) != null) return;
-      final bytes = await fetch();
-      if (bytes.isNotEmpty) await _writeDisk(key, bytes);
-    } catch (_) {
-      // Best-effort; the next playback streams again.
-    }
   }
 
   // --- attachment-shaped helpers (the two fetch paths the app uses) ---------
@@ -216,11 +219,33 @@ class MediaCache {
 
   /// High-quality display bytes used only after opening the media viewer.
   Future<Uint8List> attachmentDisplay(ApiClient api, AttachmentModel a) =>
-      load(displayMediaKey(a), () => api.getAttachmentPreviewBytes(a));
+      a.guid.startsWith('local-')
+      ? attachmentFull(api, a.guid)
+      : load(
+          displayMediaKey(a),
+          () => a.isAnimatedGif
+              ? api.getAttachmentBytes(a.guid)
+              : api.getAttachmentPreviewBytes(a),
+          urgent: true,
+        );
 
   /// Original attachment bytes (save/share/forward/video).
-  Future<Uint8List> attachmentFull(ApiClient api, String guid) =>
-      load(fullMediaKey(guid), () => api.getAttachmentBytes(guid));
+  Future<Uint8List> attachmentFull(ApiClient api, String guid) {
+    if (guid.startsWith('local-')) {
+      final original = _localOriginals[guid];
+      if (original != null) return original();
+      final bytes = _pinned[guid];
+      if (bytes != null) return Future.value(bytes);
+      return Future.error(
+        StateError('Local attachment is no longer available'),
+      );
+    }
+    return load(
+      fullMediaKey(guid),
+      () => api.getAttachmentBytes(guid),
+      urgent: true,
+    );
+  }
 
   static String fullMediaKey(String attachmentGuid) => 'full:$attachmentGuid';
 

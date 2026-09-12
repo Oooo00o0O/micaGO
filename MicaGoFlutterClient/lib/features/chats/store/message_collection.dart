@@ -69,46 +69,31 @@ class MessageCollection {
     _invalidate();
   }
 
-  /// C78: applies a freshly fetched page **without** dropping rows that arrived
-  /// while it was in flight.
-  ///
-  /// [replaceServerPage] clears the whole confirmed set first, so any realtime
-  /// message delivered during the fetch vanished when the page landed (and a
-  /// merged view multiplies the fetch time, widening that window per route).
-  /// Rules, mirroring the Windows client's MergeSnapshot: page rows win; local
-  /// rows the page does not contain survive when they are newer than the
-  /// page's own window (live arrivals); older absent rows are dropped so
-  /// server-side deletes still disappear.
-  void mergeServerPage(Iterable<MessageModel> page) {
-    final incoming = <String, MessageModel>{};
-    for (final m in page) {
-      if (m.guid.isNotEmpty) {
-        incoming[m.guid] = m;
-      } else if (m.tempId != null) {
-        _pending[m.tempId!] = m;
+  Map<String, MessageModel> snapshot() => Map.of(_server);
+
+  void removeServerMessages(Iterable<String> guids) {
+    for (final guid in guids) {
+      _server.remove(guid);
+      _presentationKeysByServerGuid.remove(guid);
+    }
+    _invalidate();
+  }
+
+  void mergeServerPage(
+    Iterable<MessageModel> page, {
+    Map<String, MessageModel>? baseline,
+  }) {
+    for (final message in page) {
+      if (message.guid.isNotEmpty) {
+        if (baseline != null &&
+            !identical(_server[message.guid], baseline[message.guid])) {
+          continue;
+        }
+        _server[message.guid] = message;
+      } else if (message.tempId != null) {
+        _pending.putIfAbsent(message.tempId!, () => message);
       }
     }
-    if (incoming.isEmpty) {
-      // An empty page says nothing about what is already on screen.
-      _reconcilePending();
-      _invalidate();
-      return;
-    }
-    var floor = incoming.values.first.dateCreated ?? 0;
-    for (final m in incoming.values) {
-      final at = m.dateCreated ?? 0;
-      if (at < floor) floor = at;
-    }
-    final survivors = <String, MessageModel>{
-      for (final entry in _server.entries)
-        if (!incoming.containsKey(entry.key) &&
-            (entry.value.dateCreated ?? 0) >= floor)
-          entry.key: entry.value,
-    };
-    _server
-      ..clear()
-      ..addAll(survivors)
-      ..addAll(incoming);
     _reconcilePending();
     _invalidate();
   }

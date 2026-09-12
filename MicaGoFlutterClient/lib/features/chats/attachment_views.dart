@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -46,6 +47,18 @@ class AttachmentView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return KeyedSubtree(
+      key:
+          attachment.canRenderInlineImage &&
+              !attachment.isStickerLike &&
+              !attachment.isVideo
+          ? const ValueKey('inline-image')
+          : ValueKey((api, MediaCache.previewMediaKey(attachment))),
+      child: _buildAttachment(context),
+    );
+  }
+
+  Widget _buildAttachment(BuildContext context) {
     final overrideAll = onLongPress;
     final override = overrideAll == null
         ? null
@@ -494,7 +507,7 @@ class _VideoAttachmentState extends State<_VideoAttachment> {
       future: _future,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return _MediaLoadSwap(placeholder: placeholder);
+          return placeholder;
         }
         final bytes = snap.data;
         if (snap.hasError || bytes == null || bytes.isEmpty) {
@@ -504,10 +517,7 @@ class _VideoAttachmentState extends State<_VideoAttachment> {
             onLongPress: widget.onLongPress,
           );
         }
-        return _MediaLoadSwap(
-          placeholder: placeholder,
-          media: _preview(context, bytes),
-        );
+        return _preview(context, bytes);
       },
     );
   }
@@ -697,83 +707,6 @@ class _MediaLoadingPlaceholder extends StatelessWidget {
   }
 }
 
-/// C69: one stable media surface. Loaded pixels briefly fade over the existing
-/// placeholder; neither this widget nor the media scales, slides, or runs a
-/// bubble entrance animation.
-class _MediaLoadSwap extends StatefulWidget {
-  final Widget placeholder;
-  final Widget? media;
-  const _MediaLoadSwap({required this.placeholder, this.media});
-
-  @override
-  State<_MediaLoadSwap> createState() => _MediaLoadSwapState();
-}
-
-class _MediaLoadSwapState extends State<_MediaLoadSwap>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _opacity;
-
-  @override
-  void initState() {
-    super.initState();
-    _opacity = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 110),
-      value: widget.media == null ? 0 : 1,
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant _MediaLoadSwap oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.media == null && widget.media != null) {
-      _opacity.forward(from: 0);
-    } else if (oldWidget.media != null && widget.media == null) {
-      _opacity.value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _opacity.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final media = widget.media;
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.center,
-      clipBehavior: Clip.hardEdge,
-      child: media == null
-          ? widget.placeholder
-          : AnimatedBuilder(
-              animation: _opacity,
-              child: media,
-              builder: (context, child) => Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (_opacity.value < 1)
-                    Positioned.fill(child: widget.placeholder),
-                  Opacity(
-                    opacity: Curves.easeOut.transform(_opacity.value),
-                    child: child,
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-}
-
-/// C32: renders an iMessage sticker. Stickers are images (PNG/HEIC/GIF), so we
-/// try to load + show the bitmap with sticker styling (transparent, no card,
-/// tap to fade like BlueBubbles, long-press to enlarge). If the bytes can't be
-/// fetched or decoded — common for third-party sticker packs in formats the
-/// server can't preview — we show a clean "Sticker" chip instead of a broken
-/// file card.
 class _StickerAttachment extends StatefulWidget {
   final ApiClient api;
   final AttachmentModel attachment;
@@ -826,15 +759,12 @@ class _StickerAttachmentState extends State<_StickerAttachment> {
       future: _future,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const _MediaLoadSwap(placeholder: placeholder);
+          return placeholder;
         }
         if (snap.hasError || snap.data == null || snap.data!.isEmpty) {
           return const _StickerPlaceholder();
         }
-        return _MediaLoadSwap(
-          placeholder: placeholder,
-          media: _sticker(snap.data!),
-        );
+        return _sticker(snap.data!);
       },
     );
   }
@@ -985,125 +915,148 @@ class _ImageAttachment extends StatefulWidget {
 }
 
 class _ImageAttachmentState extends State<_ImageAttachment> {
-  // Already-cached bytes are used synchronously so scrolling an image back into
-  // view renders it immediately instead of flashing a spinner frame (C51).
   Uint8List? _bytes;
-  Future<Uint8List>? _future;
+  double? _aspect;
+  bool _failed = false;
+  int _generation = 0;
 
   @override
   void initState() {
     super.initState();
-    final cacheKey = MediaCache.previewMediaKey(widget.attachment);
-    final cached = MediaCache.instance.memoryHit(cacheKey);
-    if (cached != null) {
-      _bytes = cached;
-    } else {
-      _future = _loadBytes();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImageAttachment oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api ||
+        MediaCache.previewMediaKey(oldWidget.attachment) !=
+            MediaCache.previewMediaKey(widget.attachment)) {
+      if (!oldWidget.attachment.guid.startsWith('local-') &&
+          oldWidget.attachment.guid != widget.attachment.guid) {
+        _bytes = null;
+        _aspect = null;
+      }
+      _load();
     }
   }
 
-  Future<Uint8List> _loadBytes() =>
-      MediaCache.instance.attachmentPreview(widget.api, widget.attachment);
+  Future<void> _load() async {
+    final generation = ++_generation;
+    final attachment = widget.attachment;
+    final cache = MediaCache.instance;
+    final key = MediaCache.previewMediaKey(attachment);
+    _failed = false;
+    final cachedAspect = cache.aspectRatioFor(key);
+    _aspect ??= cachedAspect;
+    final cachedBytes = cache.memoryHit(key);
+    if (cachedBytes != null && cachedAspect != null) {
+      _bytes = cachedBytes;
+      _aspect ??= cachedAspect;
+      return;
+    }
+    try {
+      final bytes =
+          cachedBytes ?? await cache.attachmentPreview(widget.api, attachment);
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      late double aspect;
+      try {
+        final descriptor = await ui.ImageDescriptor.encoded(buffer);
+        try {
+          aspect = descriptor.width / descriptor.height;
+        } finally {
+          descriptor.dispose();
+        }
+      } finally {
+        buffer.dispose();
+      }
+      cache.rememberAspectRatio(key, aspect);
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _aspect ??= aspect;
+        _bytes = bytes;
+      });
+    } catch (_) {
+      if (!mounted || generation != _generation) return;
+      setState(() => _failed = true);
+    }
+  }
 
-  String get _aspectKey =>
-      widget.attachment.previewUrl ?? widget.attachment.guid;
-
-  /// C77: records the laid-out shape after paint, so the *next* view of this
-  /// image can reserve exactly the right box instead of resizing into place.
-  void _rememberAspect(BuildContext imageContext) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final box = imageContext.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize || box.size.height <= 0) return;
-      MediaCache.instance.rememberAspectRatio(
-        _aspectKey,
-        box.size.width / box.size.height,
-      );
-    });
+  @override
+  void dispose() {
+    _generation++;
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bytes = _bytes;
-    if (bytes != null) return _image(context, bytes);
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.738;
-    // C77: with a remembered ratio the placeholder is already the final size.
-    final knownAspect = MediaCache.instance.aspectRatioFor(_aspectKey);
-    final placeholder = knownAspect == null
-        ? _MediaLoadingPlaceholder(
-            width: MediaQuery.sizeOf(context).width * 0.58,
-            height: 200,
-          )
-        : _MediaLoadingPlaceholder(
-            width: maxWidth,
-            height: (maxWidth / knownAspect).clamp(80.0, 306.0),
-          );
-    return FutureBuilder<Uint8List>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return _MediaLoadSwap(placeholder: placeholder);
-        }
-        if (snap.hasError || snap.data == null) {
-          return _FileAttachment(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = (MediaQuery.sizeOf(context).width * 0.738).clamp(
+          0.0,
+          constraints.maxWidth,
+        );
+        final aspect = _aspect ?? 4 / 3;
+        final width = ((_aspect == null ? 200 : 306) * aspect).clamp(
+          0.0,
+          maxWidth,
+        );
+        final height = width / aspect;
+        final bytes = _bytes;
+        final placeholder = _MediaLoadingPlaceholder(
+          width: width,
+          height: height,
+        );
+        return GestureDetector(
+          onTap: _failed
+              ? () {
+                  setState(() {
+                    _load();
+                  });
+                }
+              : () => MediaGalleryViewer.open(
+                  context,
+                  api: widget.api,
+                  images: widget.siblings,
+                  initialIndex: widget.index,
+                ),
+          onLongPressStart: (details) => _tileLongPress(
+            context,
+            widget.onLongPress,
+            details.globalPosition,
             api: widget.api,
             attachment: widget.attachment,
-          );
-        }
-        return _MediaLoadSwap(
-          placeholder: placeholder,
-          media: _image(context, snap.data!),
+          ),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: _failed
+                  ? const Center(child: Icon(Icons.broken_image_outlined))
+                  : bytes == null
+                  ? placeholder
+                  : Image.memory(
+                      bytes,
+                      width: width,
+                      height: height,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      cacheWidth:
+                          (width * MediaQuery.devicePixelRatioOf(context))
+                              .round()
+                              .clamp(1, 900),
+                      filterQuality: FilterQuality.low,
+                      frameBuilder: (context, child, frame, synchronous) =>
+                          frame != null || synchronous ? child : placeholder,
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Icon(Icons.broken_image_outlined),
+                      ),
+                    ),
+            ),
+          ),
         );
       },
-    );
-  }
-
-  Widget _image(BuildContext context, Uint8List bytes) {
-    // Decode at the size actually shown (display width × pixel ratio), capped at
-    // the previous fixed 900px so it only ever decodes *smaller* — less decode
-    // work and less memory per image when scrolling (C51).
-    final isSticker = widget.attachment.isSticker;
-    final boxMaxWidth = isSticker
-        ? 180.0
-        : MediaQuery.sizeOf(context).width * 0.738;
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final decodeWidth = (boxMaxWidth * dpr).round().clamp(200, 900);
-    return GestureDetector(
-      onTap: () => MediaGalleryViewer.open(
-        context,
-        api: widget.api,
-        images: widget.siblings,
-        initialIndex: widget.index,
-      ),
-      onLongPressStart: (d) => _tileLongPress(
-        context,
-        widget.onLongPress,
-        d.globalPosition,
-        api: widget.api,
-        attachment: widget.attachment,
-      ),
-      // Bounded inline thumbnail: cap height and downscale the decode
-      // (cacheWidth) so a large photo never decodes at full resolution in
-      // the scrolling list. Full-size loading happens in the media viewer.
-      child: ConstrainedBox(
-        constraints: isSticker
-            ? const BoxConstraints(maxHeight: 180, maxWidth: 180)
-            : BoxConstraints(
-                maxHeight: 306,
-                maxWidth: MediaQuery.sizeOf(context).width * 0.738,
-              ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(isSticker ? 4 : 12),
-          child: Image.memory(
-            bytes,
-            fit: isSticker ? BoxFit.contain : BoxFit.cover,
-            gaplessPlayback: true,
-            cacheWidth: decodeWidth,
-            filterQuality: FilterQuality.low,
-            errorBuilder: (_, _, _) =>
-                _FileAttachment(api: widget.api, attachment: widget.attachment),
-          ),
-        ),
-      ),
     );
   }
 }

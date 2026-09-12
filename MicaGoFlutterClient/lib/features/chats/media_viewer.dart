@@ -169,7 +169,6 @@ class _ZoomableImage extends StatefulWidget {
 class _ZoomableImageState extends State<_ZoomableImage>
     with SingleTickerProviderStateMixin {
   late Future<Uint8List> _future = _load();
-  bool _usingCompatibilityPreview = false;
   final TransformationController _tc = TransformationController();
   late final AnimationController _anim = AnimationController(
     vsync: this,
@@ -204,21 +203,7 @@ class _ZoomableImageState extends State<_ZoomableImage>
   }
 
   Future<Uint8List> _load() =>
-      MediaCache.instance.attachmentFull(widget.api, widget.attachment.guid);
-
-  void _useCompatibilityPreview() {
-    if (_usingCompatibilityPreview) return;
-    _usingCompatibilityPreview = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        _future = MediaCache.instance.attachmentDisplay(
-          widget.api,
-          widget.attachment,
-        );
-      });
-    });
-  }
+      MediaCache.instance.attachmentDisplay(widget.api, widget.attachment);
 
   // Double-tap toggles between fit and a 2.5x zoom centered on the tap point,
   // animated — the mature gallery behavior.
@@ -249,8 +234,11 @@ class _ZoomableImageState extends State<_ZoomableImage>
   Widget build(BuildContext context) {
     return FutureBuilder<Uint8List>(
       future: _future,
+      initialData: MediaCache.instance.memoryHit(
+        MediaCache.previewMediaKey(widget.attachment),
+      ),
       builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
+        if (!snap.hasData && snap.connectionState != ConnectionState.done) {
           return const Center(
             child: CircularProgressIndicator(color: Colors.white),
           );
@@ -278,17 +266,16 @@ class _ZoomableImageState extends State<_ZoomableImage>
                 snap.data!,
                 fit: BoxFit.contain,
                 gaplessPlayback: true,
+                cacheWidth:
+                    (MediaQuery.sizeOf(context).width *
+                            MediaQuery.devicePixelRatioOf(context) *
+                            2)
+                        .ceil()
+                        .clamp(1, 4096),
                 errorBuilder: (_, _, _) {
-                  if (!_usingCompatibilityPreview) {
-                    _useCompatibilityPreview();
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
-                  }
                   return _ErrorBody(
                     name: widget.attachment.displayName,
                     onRetry: () => setState(() {
-                      _usingCompatibilityPreview = false;
                       _future = _load();
                     }),
                   );
@@ -368,88 +355,70 @@ class FullscreenVideo extends StatefulWidget {
   State<FullscreenVideo> createState() => _FullscreenVideoState();
 }
 
-class _FullscreenVideoState extends State<FullscreenVideo> {
+class _FullscreenVideoState extends State<FullscreenVideo>
+    with WidgetsBindingObserver {
   VideoPlayerController? _controller;
   bool _failed = false;
   bool _controlsVisible = true;
   Timer? _hideTimer;
+  int _generation = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
   }
 
   Future<void> _init() async {
+    final generation = ++_generation;
+    final previous = _controller;
+    setState(() {
+      _controller = null;
+      _failed = false;
+      _controlsVisible = true;
+    });
+    await previous?.dispose();
+    if (!mounted || generation != _generation) return;
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.api.attachmentPlayableUrl(widget.attachment.guid)),
+      httpHeaders: widget.api.mediaAuthHeaders,
+    );
     try {
-      // C63: play from the persistent media cache when this video was already
-      // downloaded (or sent from this device); otherwise stream from the
-      // server and cache the file in the background for next time.
-      final guid = widget.attachment.guid;
-      final mediaKey = MediaCache.fullMediaKey(guid);
-      final cachedFile = await MediaCache.instance.cachedMediaFile(mediaKey);
-      final VideoPlayerController controller;
-      if (cachedFile != null) {
-        controller = VideoPlayerController.file(cachedFile);
-      } else {
-        controller = VideoPlayerController.networkUrl(
-          Uri.parse(widget.api.attachmentUrl(guid)),
-          httpHeaders: widget.api.mediaAuthHeaders,
-        );
-        // Cap the background download so a huge video doesn't double its own
-        // bandwidth cost; anything below the cap becomes instantly replayable.
-        if (widget.attachment.totalBytes < 200 * 1024 * 1024) {
-          unawaited(
-            MediaCache.instance.cacheToDiskInBackground(
-              mediaKey,
-              () => widget.api.getAttachmentBytes(guid),
-            ),
-          );
-        }
+      await controller.initialize();
+      if (!mounted || generation != _generation) {
+        await controller.dispose();
+        return;
       }
-      await _startController(controller);
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        await controller.play();
+      }
+      if (!mounted || generation != _generation) {
+        await controller.dispose();
+        return;
+      }
+      setState(() => _controller = controller);
+      _scheduleHide();
     } catch (_) {
-      // C73: the direct stream failed — typically an iPhone HEVC-in-QuickTime
-      // clip on a device without an HEVC decoder (or a corrupt cached file).
-      // Retry once through the server's transcoded H.264 playable stream.
-      final recovered = await _initPlayable();
-      if (!recovered && mounted) setState(() => _failed = true);
-    }
-  }
-
-  Future<bool> _initPlayable() async {
-    try {
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.api.attachmentPlayableUrl(widget.attachment.guid)),
-        httpHeaders: widget.api.mediaAuthHeaders,
-      );
-      await _startController(controller);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _startController(VideoPlayerController controller) async {
-    await controller.initialize();
-    if (!mounted) {
       await controller.dispose();
-      return;
+      if (mounted && generation == _generation) setState(() => _failed = true);
     }
-    controller.addListener(_onTick);
-    await controller.play();
-    setState(() => _controller = controller);
-    _scheduleHide();
   }
 
-  void _onTick() {
-    if (mounted) setState(() {}); // refresh position/labels + play state
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _hideTimer?.cancel();
+      _controller?.pause();
+      if (mounted) setState(() => _controlsVisible = true);
+    }
   }
 
   @override
   void dispose() {
+    _generation++;
+    WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
-    _controller?.removeListener(_onTick);
     _controller?.dispose();
     super.dispose();
   }
@@ -495,138 +464,156 @@ class _FullscreenVideoState extends State<FullscreenVideo> {
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
-    final ended =
-        controller != null &&
-        controller.value.position >= controller.value.duration &&
-        controller.value.duration > Duration.zero;
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _failed ? null : _toggleControls,
         behavior: HitTestBehavior.opaque,
         child: Stack(
+          fit: StackFit.expand,
           children: [
             Center(
               child: _failed
                   ? _ErrorBody(
                       name: widget.attachment.displayName,
-                      onRetry: () {
-                        setState(() => _failed = false);
-                        _init();
-                      },
+                      onRetry: _init,
                     )
                   : controller == null
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : AspectRatio(
-                      aspectRatio: controller.value.aspectRatio == 0
-                          ? 16 / 9
-                          : controller.value.aspectRatio,
-                      child: VideoPlayer(controller),
-                    ),
-            ),
-            // Center play / pause / replay button.
-            if (controller != null && !_failed && _controlsVisible)
-              Center(
-                child: IconButton(
-                  iconSize: 64,
-                  icon: Icon(
-                    ended
-                        ? Icons.replay_circle_filled
-                        : controller.value.isPlaying
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_filled,
-                    color: Colors.white,
-                  ),
-                  onPressed: _togglePlay,
-                ),
-              ),
-            // Bottom scrubber + time labels.
-            if (controller != null && !_failed && _controlsVisible)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [Colors.black54, Colors.transparent],
-                    ),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            _fmt(controller.value.position),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                              child: VideoProgressIndicator(
-                                controller,
-                                allowScrubbing: true,
-                                colors: VideoProgressColors(
-                                  playedColor: Colors.white,
-                                  bufferedColor: Colors.white38,
-                                  backgroundColor: Colors.white24,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Text(
-                            _fmt(controller.value.duration),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ],
+                  : RepaintBoundary(
+                      child: AspectRatio(
+                        aspectRatio: controller.value.aspectRatio,
+                        child: VideoPlayer(controller),
                       ),
                     ),
-                  ),
-                ),
-              ),
-            if (_controlsVisible)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.black54, Colors.transparent],
-                    ),
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                        Expanded(
-                          child: Text(
-                            widget.attachment.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    ),
+            ),
+            if (controller != null)
+              ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: controller,
+                builder: (context, value, _) => _controls(context, controller),
+              )
+            else
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ),
               ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _controls(BuildContext context, VideoPlayerController controller) {
+    final ended =
+        controller.value.duration > Duration.zero &&
+        controller.value.position >= controller.value.duration;
+    return Stack(
+      children: [
+        if (controller.value.isBuffering)
+          const Center(child: CircularProgressIndicator(color: Colors.white)),
+        // Center play / pause / replay button.
+        if (_controlsVisible)
+          Center(
+            child: IconButton(
+              iconSize: 64,
+              icon: Icon(
+                ended
+                    ? Icons.replay_circle_filled
+                    : controller.value.isPlaying
+                    ? Icons.pause_circle_filled
+                    : Icons.play_circle_filled,
+                color: Colors.white,
+              ),
+              onPressed: _togglePlay,
+            ),
+          ),
+        // Bottom scrubber + time labels.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [Colors.black54, Colors.transparent],
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      _fmt(controller.value.position),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: VideoProgressIndicator(
+                          controller,
+                          allowScrubbing: true,
+                          colors: VideoProgressColors(
+                            playedColor: Colors.white,
+                            bufferedColor: Colors.white38,
+                            backgroundColor: Colors.white24,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _fmt(controller.value.duration),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (_controlsVisible)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black54, Colors.transparent],
+                ),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    Expanded(
+                      child: Text(
+                        widget.attachment.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

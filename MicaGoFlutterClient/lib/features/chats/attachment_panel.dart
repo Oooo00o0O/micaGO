@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -9,16 +11,72 @@ import 'package:photo_manager/photo_manager.dart';
 /// the gallery asset id when picked from the media grid, so the grid can show a
 /// selected check and toggle it off; null for camera/file picks.
 class StagedAttachment {
-  final Uint8List bytes;
+  final Uint8List? bytes;
+  final String? path;
+  final int size;
+  final Uint8List? thumbnail;
+  final double? previewAspectRatio;
   final String filename;
   final String? sourceId;
   final bool isAudioMessage;
-  const StagedAttachment({
-    required this.bytes,
+  StagedAttachment({
+    required Uint8List bytes,
     required this.filename,
     this.sourceId,
     this.isAudioMessage = false,
-  });
+  }) : bytes = bytes,
+       path = null,
+       size = bytes.length,
+       previewAspectRatio = null,
+       thumbnail = null;
+
+  const StagedAttachment.file({
+    required this.path,
+    required this.size,
+    required this.filename,
+    this.thumbnail,
+    this.previewAspectRatio,
+    this.sourceId,
+    this.isAudioMessage = false,
+  }) : bytes = null;
+
+  Future<Uint8List> readBytes() =>
+      path == null ? Future.value(bytes!) : File(path!).readAsBytes();
+
+  Future<Uint8List> previewBytes() async {
+    if (thumbnail != null) return thumbnail!;
+    if (!isImage) return Uint8List(0);
+    final buffer = path != null
+        ? await ui.ImmutableBuffer.fromFilePath(path!)
+        : await ui.ImmutableBuffer.fromUint8List(bytes!);
+    try {
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      try {
+        final width = descriptor.width.clamp(1, 720);
+        final codec = await descriptor.instantiateCodec(targetWidth: width);
+        try {
+          final frame = await codec.getNextFrame();
+          try {
+            final data = await frame.image.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            if (data == null) {
+              throw StateError('Could not encode attachment preview');
+            }
+            return data.buffer.asUint8List();
+          } finally {
+            frame.image.dispose();
+          }
+        } finally {
+          codec.dispose();
+        }
+      } finally {
+        descriptor.dispose();
+      }
+    } finally {
+      buffer.dispose();
+    }
+  }
 
   bool get isImage {
     final n = filename.toLowerCase();
@@ -113,19 +171,14 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
     _pickingCamera = true;
     try {
       final picker = ImagePicker();
-      XFile? file;
-      try {
-        file = await picker.pickImage(source: ImageSource.camera);
-      } catch (_) {
-        // Some Android camera apps briefly report unavailable while the camera
-        // is being released by a scanner/previous picker. Retry once after the
-        // activity stack has settled instead of surfacing a false failure.
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-        file = await picker.pickImage(source: ImageSource.camera);
-      }
+      final file = await picker.pickImage(source: ImageSource.camera);
       if (file == null) return;
       widget.onPicked([
-        StagedAttachment(bytes: await file.readAsBytes(), filename: file.name),
+        StagedAttachment.file(
+          path: file.path,
+          size: await file.length(),
+          filename: file.name,
+        ),
       ]);
     } catch (e) {
       widget.onError('Camera unavailable or permission denied: $e');
@@ -137,14 +190,16 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
   Future<void> _pickFiles() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        withData: true,
+        withData: false,
         allowMultiple: true,
       );
       final picked = <StagedAttachment>[];
       for (final f in result?.files ?? const <PlatformFile>[]) {
-        final bytes = f.bytes;
-        if (bytes != null) {
-          picked.add(StagedAttachment(bytes: bytes, filename: f.name));
+        final path = f.path;
+        if (path != null) {
+          picked.add(
+            StagedAttachment.file(path: path, size: f.size, filename: f.name),
+          );
         }
       }
       if (picked.isNotEmpty) widget.onPicked(picked);
@@ -159,8 +214,9 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
       final picked = <StagedAttachment>[];
       for (final file in files) {
         picked.add(
-          StagedAttachment(
-            bytes: await file.readAsBytes(),
+          StagedAttachment.file(
+            path: file.path,
+            size: await file.length(),
             filename: file.name,
           ),
         );
@@ -506,12 +562,37 @@ class StagedAttachmentStrip extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: item.isImage
+                child:
+                    item.isImage &&
+                        (item.thumbnail != null || item.bytes != null)
                     ? Image.memory(
-                        item.bytes,
+                        item.thumbnail ?? item.bytes!,
                         width: 60,
                         height: 60,
+                        cacheWidth:
+                            (60 * MediaQuery.devicePixelRatioOf(context))
+                                .ceil(),
+                        errorBuilder: (_, _, _) => const SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: Icon(Icons.broken_image_outlined),
+                        ),
                         fit: BoxFit.cover,
+                      )
+                    : item.isImage && item.path != null
+                    ? Image.file(
+                        File(item.path!),
+                        width: 60,
+                        height: 60,
+                        cacheWidth:
+                            (60 * MediaQuery.devicePixelRatioOf(context))
+                                .ceil(),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: Icon(Icons.broken_image_outlined),
+                        ),
                       )
                     : Container(
                         width: 60,
