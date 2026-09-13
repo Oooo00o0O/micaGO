@@ -82,19 +82,28 @@ class MessageCollection {
   void mergeServerPage(
     Iterable<MessageModel> page, {
     Map<String, MessageModel>? baseline,
+    bool allowNewAttachmentFallback = false,
   }) {
+    final newGuids = <String>{};
     for (final message in page) {
       if (message.guid.isNotEmpty) {
+        if (!_server.containsKey(message.guid)) newGuids.add(message.guid);
         if (baseline != null &&
             !identical(_server[message.guid], baseline[message.guid])) {
           continue;
         }
         _server[message.guid] = message;
+        if (message.tempId != null) {
+          _presentationKeysByServerGuid[message.guid] = message.tempId!;
+          _pending.remove(message.tempId);
+        }
       } else if (message.tempId != null) {
-        _pending.putIfAbsent(message.tempId!, () => message);
+        if (!_presentationKeysByServerGuid.containsValue(message.tempId)) {
+          _pending.putIfAbsent(message.tempId!, () => message);
+        }
       }
     }
-    _reconcilePending();
+    _reconcilePending(allowNewAttachmentFallback ? newGuids : const {});
     _invalidate();
   }
 
@@ -171,6 +180,10 @@ class MessageCollection {
   void setPendingState(String tempId, LocalSendState state) {
     final p = _pending[tempId];
     if (p == null) return;
+    if (p.localState == LocalSendState.sentUnconfirmed &&
+        state != LocalSendState.confirmed) {
+      return;
+    }
     _pending[tempId] = p.copyWith(localState: state);
     _invalidate();
   }
@@ -199,7 +212,7 @@ class MessageCollection {
 
   // --- Reconciliation -------------------------------------------------------
 
-  void _reconcilePending() {
+  void _reconcilePending(Set<String> newGuids) {
     if (_pending.isEmpty) return;
     final servers = _server.values.toList(growable: false)
       ..sort(_compareMessageTime);
@@ -208,7 +221,7 @@ class MessageCollection {
       final tempId = matchingPendingTempId(
         _pending.values,
         server,
-        allowAttachmentFallback: false,
+        allowAttachmentFallback: newGuids.contains(server.guid),
       );
       if (tempId == null) continue;
       _removePendingAsConfirmed(tempId, server);
@@ -216,6 +229,7 @@ class MessageCollection {
   }
 
   void _reconcileOne(MessageModel server, {bool isNewRow = false}) {
+    if (_presentationKeysByServerGuid.containsKey(server.guid)) return;
     if (_pending.isEmpty) return;
     final tempId = matchingPendingTempId(
       _pending.values,
@@ -227,8 +241,9 @@ class MessageCollection {
   }
 
   void _removePendingAsConfirmed(String tempId, MessageModel server) {
+    if (server.guid.isEmpty) return;
     final pending = _pending.remove(tempId);
-    if (pending == null || server.guid.isEmpty) return;
+    if (pending == null) return;
     _presentationKeysByServerGuid[server.guid] = presentationKeyFor(pending);
   }
 }
@@ -236,10 +251,7 @@ class MessageCollection {
 int _compareMessageTime(MessageModel a, MessageModel b) =>
     (a.dateCreated ?? 0).compareTo(b.dateCreated ?? 0);
 
-/// Selects exactly one optimistic row for [server]. Exact identity matches win;
-/// a new attachment row may fall back to the closest non-failed attachment send
-/// in the confirmation window. This is deliberately one-to-one: a server row
-/// must never remove several same-name or same-size pending sends.
+/// Matches one pending send. Conversion matching requires one unambiguous upload.
 String? matchingPendingTempId(
   Iterable<MessageModel> pending,
   MessageModel server, {
@@ -264,6 +276,9 @@ String? matchingPendingTempId(
       .where((m) {
         final at = m.dateCreated;
         return m.isFromMe &&
+            (m.chatGuid == null ||
+                server.chatGuid == null ||
+                m.chatGuid == server.chatGuid) &&
             m.hasAttachments &&
             !_hasComparableText(m) &&
             m.localState != LocalSendState.failed &&
@@ -301,6 +316,11 @@ MessageModel _closestPending(
 /// identity (C63 — attachment sends get no `send:match`), each within a time
 /// window. Prevents showing both a pending bubble and its confirmed server row.
 bool shouldReconcileLocalWithServer(MessageModel local, MessageModel server) {
+  if (local.chatGuid != null &&
+      server.chatGuid != null &&
+      local.chatGuid != server.chatGuid) {
+    return false;
+  }
   if (!local.isFromMe || !server.isFromMe || server.guid.isEmpty) return false;
   if (local.guid.isNotEmpty && local.guid == server.guid) return true;
   if (local.tempId != null && local.tempId == server.tempId) return true;

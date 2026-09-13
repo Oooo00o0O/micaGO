@@ -896,6 +896,7 @@ public sealed partial class MessageBubble : UserControl
             MessageDeliveryState.Delivered => labels[2],
             MessageDeliveryState.Read => $"{labels[3]} · {message.SentAt}",
             MessageDeliveryState.Failed => labels[4],
+            MessageDeliveryState.AwaitingConfirmation => language switch {"zh-Hans"=>"等待发送确认","zh-Hant"=>"等待傳送確認",_=>"Waiting for confirmation"},
             _ => message.SentAt,
         };
         if (message.IsEdited)

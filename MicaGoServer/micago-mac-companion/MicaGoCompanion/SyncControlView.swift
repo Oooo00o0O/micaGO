@@ -34,6 +34,7 @@ struct SyncControlPage: View {
 
             ContactsCard()
             DefaultPolicyCard()
+            ChatVisibilityCard(preferences: model.chatPreferences)
             BackfillSettingsCard()
             ContactSearchCard(editorTarget: $editorTarget)
             ChatsCard(editorTarget: $editorTarget)
@@ -48,6 +49,53 @@ struct SyncControlPage: View {
                 .environmentObject(model)
                 .environmentObject(contacts)
         }
+    }
+}
+
+private struct ChatVisibilityCard: View {
+    @EnvironmentObject var model: AppModel
+    @ObservedObject var preferences: ChatPreferenceStore
+    @State private var selected = ""
+    private var client: APIClient? {
+        model.baseURL.map { APIClient(baseURL: $0, token: model.token) }
+    }
+    var body: some View {
+        SectionCard(title: L10n.tr("prefs.title")) {
+            Text(L10n.tr(preferences.errorKey ?? "prefs.description"))
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Picker(L10n.tr("prefs.select"), selection: $selected) {
+                    Text(L10n.tr("prefs.select")).tag("")
+                    ForEach(model.chatsList.filter { !preferences.hidden.contains($0.guid) }) { chat in
+                        Text(chat.label).tag(chat.guid)
+                    }
+                }
+                Button(L10n.tr("prefs.hide")) {
+                    Task { await preferences.setHidden(selected, hidden: true, client: client); selected = "" }
+                }.disabled(selected.isEmpty || preferences.busy || !preferences.ready)
+            }
+            ForEach(preferences.hidden.sorted(), id: \.self) { guid in
+                HStack {
+                    Text(model.chatsList.first { $0.guid == guid }?.label ?? guid).textSelection(.enabled)
+                    if model.storedRule(kind: "chat", value: guid)?.syncMode == "block" {
+                        Text(L10n.tr("prefs.blocked")).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(L10n.tr("prefs.restore")) {
+                        Task { await preferences.setHidden(guid, hidden: false, client: client) }
+                    }.disabled(preferences.busy)
+                }
+            }
+            HStack {
+                if preferences.hasConflicts {
+                    Button(L10n.tr("prefs.server")) { Task { await preferences.resolve(useMine: false, client: client) } }
+                    Button(L10n.tr("prefs.mine")) { Task { await preferences.resolve(useMine: true, client: client) } }
+                }
+                if preferences.pending || preferences.errorKey != nil {
+                    Button(L10n.tr("sync.retry")) { Task { if let client { await preferences.sync(client: client) } } }
+                }
+            }.disabled(preferences.busy)
+        }.task { if let client { await preferences.sync(client: client) } }
     }
 }
 

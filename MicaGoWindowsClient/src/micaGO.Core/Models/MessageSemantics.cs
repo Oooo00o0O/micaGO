@@ -63,20 +63,15 @@ public static partial class MessageSemantics
 
     public static Message? MatchingPending(IEnumerable<Message> rows, Message server)
     {
-        var pending = rows.Where(row => row.IsPending && row.DeliveryState != MessageDeliveryState.Failed).ToArray();
+        if(server.IsPending)return null;
+        var pending = rows.Where(row => row.IsPending && row.ChatId.Equals(server.ChatId,StringComparison.OrdinalIgnoreCase)).ToArray();
         var exact = pending.Where(row => ShouldReconcile(row, server)).OrderBy(row => Math.Abs(row.DateCreated - server.DateCreated)).ToArray();
         if (exact.Length > 0) return exact[0];
         if (!server.IsOutgoing || VisibleText(server.Text).Length > 0 || server.Media.Count == 0 || server.DateCreated <= 0) return null;
-        var fallback = pending.Where(row => row.IsOutgoing && row.Media.Count > 0 && VisibleText(row.Text).Length == 0 && row.DateCreated > 0 && Math.Abs(row.DateCreated - server.DateCreated) <= TimeSpan.FromMinutes(5).TotalMilliseconds).ToArray();
+        var fallback = pending.Where(row => row.DeliveryState != MessageDeliveryState.Failed && row.IsOutgoing && row.Media.Count > 0 && VisibleText(row.Text).Length == 0 && row.DateCreated > 0 && Math.Abs(row.DateCreated - server.DateCreated) <= TimeSpan.FromMinutes(5).TotalMilliseconds).ToArray();
         return fallback.Length == 1 ? fallback[0] : null;
     }
 
-    /// <summary>
-    /// Applies server-authoritative content to an already presented row without
-    /// changing that row's identity or chronological slot. Server confirmation
-    /// timestamps routinely differ by a few milliseconds from optimistic send
-    /// timestamps; adopting them caused ListView.Move and recycled the bubble.
-    /// </summary>
     /// <summary>
     /// C74: merges a freshly loaded snapshot into the rows already on screen.
     ///
@@ -115,29 +110,13 @@ public static partial class MessageSemantics
         {
             if (row.IsSeparator || !IsAllowed(row, allowedChatIds)) continue;
             var key = (row.ChatId, row.Id);
-            if (byIdentity.TryGetValue(key, out var existing))
-            {
-                merged.Add(ReconcilePresentation(existing, row));
-            }
-            else
-            {
-                // Flutter MessageCollection parity: consume at most one pending
-                // row per server row. Removing the match from this candidate set
-                // prevents two rapid identical sends from claiming the same
-                // optimistic bubble.
-                var pending = MatchingPending(availablePending, row);
-                if (pending is null)
-                {
-                    merged.Add(row);
-                }
-                else
-                {
-                    merged.Add(ReconcilePresentation(pending, row));
-                    availablePending.Remove(pending);
-                    consumedPending.Add((pending.ChatId, pending.Id));
-                }
-            }
-            seen.Add(key);
+            if(!seen.Add(key))continue;
+            byIdentity.TryGetValue(key,out var existing);
+            var candidates=existing is null?availablePending:availablePending.Where(p=>(p.DeliveryState is MessageDeliveryState.Failed or MessageDeliveryState.AwaitingConfirmation) && p.DateCreated<=row.DateCreated);
+            var pending=existing is not null && existing.PresentationKey!=existing.Id ? null : MatchingPending(candidates,row);
+            if(pending is not null) {
+                merged.Add(ReconcilePresentation(pending,row));availablePending.Remove(pending);consumedPending.Add((pending.ChatId,pending.Id));
+            } else merged.Add(existing is null?row:ReconcilePresentation(existing,row));
         }
 
         if (presented.Count > 0)

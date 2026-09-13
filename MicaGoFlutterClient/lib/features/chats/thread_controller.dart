@@ -11,9 +11,6 @@ import 'attachment_panel.dart' show StagedAttachment;
 import 'models/message_model.dart';
 import 'realtime_event_helpers.dart' as rt;
 import 'store/message_collection.dart';
-// Re-export the reconciliation predicate so existing callers/tests that import
-// it from thread_controller continue to work after the store extraction.
-export 'store/message_collection.dart' show shouldReconcileLocalWithServer;
 
 enum ThreadState { loading, loaded, empty, error }
 
@@ -149,6 +146,7 @@ class ThreadController extends ChangeNotifier {
       _col.mergeServerPage(
         page.messages.where((m) => !hidden.contains(m.guid)),
         baseline: baseline,
+        allowNewAttachmentFallback: true,
       );
       if (!_historyLoaded) {
         _historyCursor = page.nextCursor;
@@ -235,7 +233,7 @@ class ThreadController extends ChangeNotifier {
       tempId: tempId,
       text: trimmed,
       dateCreated: DateTime.now().millisecondsSinceEpoch,
-    );
+    ).copyWith(chatGuid: chatGuid);
     _col.addPending(optimistic);
     await app.cache.addPending(chatGuid, optimistic);
     state = ThreadState.loaded;
@@ -250,31 +248,23 @@ class ThreadController extends ChangeNotifier {
       _col.confirmPending(tempId, confirmed);
       await app.cache.confirmPending(chatGuid, tempId, confirmed);
     } on ApiException catch (e) {
-      // AppleScript succeeded but DB confirmation timed out → sentUnconfirmed,
-      // NOT failed; a later server row / update will upgrade it.
-      _col.setPendingState(
-        tempId,
-        e.code == 'send_confirmation_timeout'
-            ? LocalSendState.sentUnconfirmed
-            : LocalSendState.failed,
-      );
-      await app.cache.setPendingState(
-        tempId,
-        e.code == 'send_confirmation_timeout'
-            ? LocalSendState.sentUnconfirmed
-            : LocalSendState.failed,
-      );
+      _col.setPendingState(tempId, e.sendState);
+      await app.cache.setPendingState(tempId, e.sendState);
+      _scheduleReload();
     }
     _notify();
   }
 
   Future<void> retry(String tempId) async {
+    await load(showSpinner: false);
+    if (_disposed || _col.pendingByTempId(tempId) == null) return;
     // C63: failed attachment sends retry with their staged bytes.
     final staged = _pendingAttachmentSends[tempId];
     if (staged != null) {
       if (attachmentSending) return;
       _col.removePending(tempId);
       _cleanupAttachmentSend(tempId);
+      await app.cache.deletePending(tempId);
       _notify();
       await sendAttachments([staged]);
       return;
@@ -282,6 +272,7 @@ class ThreadController extends ChangeNotifier {
     final removed = _col.removePending(tempId);
     final text = removed?.text;
     if (text == null) return;
+    await app.cache.deletePending(tempId);
     _notify();
     await send(text);
   }
@@ -354,7 +345,7 @@ class ThreadController extends ChangeNotifier {
         filename: item.filename,
         totalBytes: item.size,
         dateCreated: baseMs + i,
-      );
+      ).copyWith(chatGuid: chatGuid);
       _pendingAttachmentSends[tempId] = item;
       _uploadProgress[tempId] = ValueNotifier<double>(0);
       // C66: *pin* the local bytes (non-evictable, synchronous) so the bubble
@@ -432,10 +423,13 @@ class ThreadController extends ChangeNotifier {
         _col.replacePending(tempId, updated);
         _notify();
       } on ApiException catch (e) {
-        // C70: keep sending the remaining files — the failed one keeps its
-        // failed bubble (tap to retry) and the batch continues.
-        attachmentError = e.friendly;
-        _col.setPendingState(tempId, LocalSendState.failed);
+        if (_col.pendingByTempId(tempId) != null) {
+          attachmentError = e.sendState == LocalSendState.failed
+              ? e.friendly
+              : null;
+          _col.setPendingState(tempId, e.sendState);
+        }
+        _scheduleReload();
         _notify();
       } catch (e) {
         attachmentError = '$e';
@@ -486,8 +480,19 @@ class ThreadController extends ChangeNotifier {
             msg is Map<String, dynamic> &&
             _col.pendingByTempId(tempId) != null) {
           final confirmed = MessageModel.fromJson(msg);
+          if (confirmed.chatGuid != null &&
+              !threadGuids.contains(confirmed.chatGuid)) {
+            break;
+          }
           _col.confirmPending(tempId, confirmed);
-          unawaited(app.cache.confirmPending(chatGuid, tempId, confirmed));
+          _sweepAttachmentSendBookkeeping();
+          unawaited(
+            app.cache.confirmPending(
+              confirmed.chatGuid ?? chatGuid,
+              tempId,
+              confirmed,
+            ),
+          );
           unawaited(app.markRealtimeEventApplied(e));
           _notify();
         }
@@ -638,9 +643,5 @@ class ThreadController extends ChangeNotifier {
     super.dispose();
   }
 }
-
-MessageModel? messageFromWsEvent(WsEvent e) => rt.messageFromWsEvent(e);
-
-String? chatGuidFromWsEvent(WsEvent e) => rt.chatGuidFromWsEvent(e);
 
 int? _asInt(Object? v) => v is num ? v.toInt() : null;

@@ -43,8 +43,10 @@ internal static class RealtimeSyncTests
     private static void Equal(string? expected,string? actual){if(expected!=actual)throw new InvalidOperationException($"Expected {expected}, got {actual}");}
     private static void True(bool value,string message){if(!value)throw new InvalidOperationException(message);}
 
-    private sealed class FakeApi : IMicaGoApi
+    internal class FakeApi : IMicaGoApi
     {
+        public virtual Task<ChatPreferences> GetChatPreferencesAsync(CancellationToken cancellationToken=default)=>Task.FromResult(new ChatPreferences("test",0,[]));
+        public virtual Task<ChatPreferences> PatchChatPreferencesAsync(ChatPreferenceMutation mutation,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
         private readonly System.Threading.Channels.Channel<RealtimeEvent> _events=System.Threading.Channels.Channel.CreateUnbounded<RealtimeEvent>();
         public Queue<MessageDelta> Deltas{get;}=[];public string BaseUrl=>"http://fake";public void EmitRealtime()=>_events.Writer.TryWrite(new("message:new","chat",null));
         public Task<MessageDelta> GetMessagesDeltaAsync(long? since,int limit=200,CancellationToken cancellationToken=default)=>Task.FromResult(Deltas.Count>0?Deltas.Dequeue():new MessageDelta([],[],since??0,false));

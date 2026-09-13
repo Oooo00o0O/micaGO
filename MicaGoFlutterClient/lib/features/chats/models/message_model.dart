@@ -507,6 +507,8 @@ class MessageModel {
 
   MessageModel copyWith({
     String? guid,
+    String? chatGuid,
+    String? tempId,
     String? text,
     int? dateRead,
     int? dateDelivered,
@@ -545,7 +547,7 @@ class MessageModel {
       unsupportedReason: unsupportedReason,
       reactions: reactions ?? this.reactions,
       replyToGuid: replyToGuid,
-      chatGuid: chatGuid,
+      chatGuid: chatGuid ?? this.chatGuid,
       associatedMessageType: associatedMessageType,
       associatedMessageGuid: associatedMessageGuid,
       threadOriginatorGuid: threadOriginatorGuid,
@@ -561,7 +563,7 @@ class MessageModel {
       isRetracted: isRetracted ?? this.isRetracted,
       isEdited: isEdited ?? this.isEdited,
       raw: raw,
-      tempId: tempId,
+      tempId: tempId ?? this.tempId,
       localState: localState ?? this.localState,
     );
   }

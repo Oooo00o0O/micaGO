@@ -426,7 +426,8 @@ func Run(options Options) error {
 	}
 
 	handlers := httpapi.NewHandlers(relay, log.Default(), sendDeps, relay, cfg.AttachmentsRoot, relay, dispatcher, cfg, statusDeps)
-	handlers.SetRuleService(relay)        // v0.11.3 sync rules backed by relay.db
+	handlers.SetRuleService(relay)
+	handlers.SetChatPreferences(relay, hub)
 	handlers.SetTestContactService(relay) // offline loopback test contact
 	// Each server (re)start resets the test conversation to a clean scratchpad.
 	if enabled, terr := relay.TestContactEnabled(ctx); terr == nil && enabled {

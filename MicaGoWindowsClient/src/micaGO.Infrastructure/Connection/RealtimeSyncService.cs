@@ -6,7 +6,7 @@ namespace MicaGo.Infrastructure.Connection;
 
 public sealed record RealtimeMessageBatch(IReadOnlyList<Message> Messages, bool AllowNotifications);
 
-public sealed class RealtimeSyncService(IMicaGoApi api, LocalCacheStore cache) : IAsyncDisposable
+public sealed class RealtimeSyncService(IMicaGoApi api, LocalCacheStore cache, ChatPreferenceSync? preferences = null) : IAsyncDisposable
 {
     private const string CursorKey = "sync.cursor";
     private readonly CancellationTokenSource _shutdown = new();
@@ -26,6 +26,7 @@ public sealed class RealtimeSyncService(IMicaGoApi api, LocalCacheStore cache) :
         await _catchUpGate.WaitAsync(cancellationToken);
         try
         {
+            if(preferences is not null) await preferences.SyncAsync(cancellationToken);
             var raw = await cache.GetSettingAsync(CursorKey, cancellationToken);
             long? cursor = long.TryParse(raw, out var parsed) ? parsed : null;
             do
@@ -69,9 +70,7 @@ public sealed class RealtimeSyncService(IMicaGoApi api, LocalCacheStore cache) :
                     // cursor never re-surfaces.
                     if (realtimeEvent.Message is { } message)
                     {
-                        // PresentationId on send:match is an in-memory tempGuid
-                        // correlation key. Persist only server identity/content.
-                        await cache.UpsertMessagesAsync([message with { PresentationId = null }], cancellationToken);
+                        await cache.UpsertMessagesAsync([message], cancellationToken);
                         MessagesChanged?.Invoke(this, new RealtimeMessageBatch([message], true));
                     }
                     await CatchUpAsync(cancellationToken);

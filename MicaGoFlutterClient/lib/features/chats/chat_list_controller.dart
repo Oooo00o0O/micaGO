@@ -112,9 +112,7 @@ class ChatListController extends ChangeNotifier {
 
   /// C42: hide every route of a (possibly merged) contact, then reload once.
   Future<void> hideChats(Iterable<String> guids) async {
-    for (final guid in guids) {
-      await app.cache.setChatHidden(guid, true);
-    }
+    await app.chatPreferences.setHidden(guids, true);
     chats = await app.cache.listChats(includeDebug: includeDebug);
     notifyListeners();
   }

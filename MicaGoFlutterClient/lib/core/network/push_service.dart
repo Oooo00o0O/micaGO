@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../storage/local_cache_store.dart';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -332,12 +333,21 @@ Future<bool> ensureBackgroundFirebase() async {
 /// path via the shared per-chat buffer + notification id. The background isolate
 /// cannot read contacts, but it can still use bundled app resources for known
 /// local chats such as the offline test contact.
+final _notificationCache = LocalCacheStore();
+
 Future<void> showPushNotification(RemoteMessage message) async {
   final data = message.data;
   // Single source of truth for "is there anything to show" (test pushes and
   // preview-disabled empty pushes are skipped) — shared with the pure logic test.
   if (!pushShouldNotify(data)) return;
   final chatGuid = data['chatGuid'] as String?;
+  if (chatGuid != null) {
+    if ((await _notificationCache.effectiveHiddenChatGuids()).contains(
+      chatGuid,
+    )) {
+      return;
+    }
+  }
 
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(

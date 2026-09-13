@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mica_go/core/network/websocket_client.dart';
 import 'package:mica_go/features/chats/models/message_model.dart';
 import 'package:mica_go/features/chats/realtime_event_helpers.dart' as rt;
-import 'package:mica_go/features/chats/thread_controller.dart';
+import 'package:mica_go/features/chats/store/message_collection.dart';
 
 MessageModel _local({
   String text = 'hello',
@@ -72,9 +72,9 @@ void main() {
         'chatGuid': 'chat-a',
         'text': 'hi',
       });
-      final msg = messageFromWsEvent(event);
+      final msg = rt.messageFromWsEvent(event);
       expect(msg?.guid, 'm1');
-      expect(chatGuidFromWsEvent(event), 'chat-a');
+      expect(rt.chatGuidFromWsEvent(event), 'chat-a');
     });
 
     test('message:update parses nested message payload', () {
@@ -82,10 +82,10 @@ void main() {
         'message': {'guid': 'm1', 'chatGuid': 'chat-a', 'dateDelivered': 1000},
         'changed': ['dateDelivered'],
       });
-      final msg = messageFromWsEvent(event);
+      final msg = rt.messageFromWsEvent(event);
       expect(msg?.guid, 'm1');
       expect(msg?.dateDelivered, 1000);
-      expect(chatGuidFromWsEvent(event), 'chat-a');
+      expect(rt.chatGuidFromWsEvent(event), 'chat-a');
     });
 
     test('message:unsend exposes top-level chatGuid', () {
@@ -94,8 +94,8 @@ void main() {
         'chatGuid': 'chat-a',
         'dateRetracted': 2000,
       });
-      expect(chatGuidFromWsEvent(event), 'chat-a');
-      expect(messageFromWsEvent(event)?.guid, 'm1');
+      expect(rt.chatGuidFromWsEvent(event), 'chat-a');
+      expect(rt.messageFromWsEvent(event)?.guid, 'm1');
     });
 
     test(

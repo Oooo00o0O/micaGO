@@ -13,6 +13,8 @@ Four components:
 
 ## Important rules
 
+- Current product version is `0.71.0` across Flutter (`+71`), Go, macOS Companion, and Windows; version-comparison fixtures and historical release notes retain their original versions.
+
 - **Never commit unless explicitly asked.** Branch first if on `main`.
 - **Never log, commit, or expose** bearer tokens, push tokens, or service-account paths. The Companion redacts tokens in captured server stdout (`BackendController.redact`).
 - Keep it **lightweight** — no new dependencies without a clear need.
@@ -22,6 +24,10 @@ Four components:
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
 
 ## Known UI/state notes
+
+- **Late send confirmation:** transport timeouts remain awaiting confirmation; explicit rejections remain failed. Flutter confirms cache rows transactionally in `send_confirmations`, ignores stale pending snapshots, and removes the old cache row before manual retry. Windows matches identity-qualified failed sends, clears persisted uploads on confirmation, and updates completed uploads without reinserting them. Interrupted uploads await confirmation rather than automatically resending. Tests: `late_send_confirmation_test.dart`, `LateSendConfirmationTests.cs`.
+
+- **Hidden chats (0.71.0):** `/api/chat-preferences` owns route-GUID visibility, independently of Sync Control. Atomic revision-checked batches and persistent mutation IDs drive Flutter, Windows, and Companion outboxes. Hidden chats keep syncing, suppress notifications, and remain hidden until restored. Legacy local records require explicit import. Cache clearing and settings backups must preserve/exclude preference outboxes respectively. Tests: Go `chat_preferences_test.go`, Flutter `chat_preference_sync_test.dart`, Windows `ChatPreferenceSyncTests.cs`.
 
 - **Flutter media/composer:** inline images keep one aspect-ratio-constrained frame through local-to-server confirmation and display the confirmed server bytes after loading; local pixels are never seeded into server cache keys. Gallery staging supplies an uncropped preview and its aspect ratio. Media loading has no size/fade wrapper animation. The composer follows keyboard insets directly, updates its outer controls only when text emptiness changes, and shares the 16sp input/strut metrics in `chat_composer_input.dart`. History uses `/api/messages/history` keyset cursors and preserves previously loaded rows on refresh. Image-frame stability and composer centering are covered by `chat_layout_stability_test.dart`.
 

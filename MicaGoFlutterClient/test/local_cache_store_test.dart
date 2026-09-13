@@ -18,6 +18,7 @@ void main() {
     store = LocalCacheStore();
     await store.open();
     await store.clearAll();
+    await store.applyChatVisibility({});
   });
 
   tearDown(() async {
@@ -436,12 +437,12 @@ void main() {
       const ChatSummary(guid: 'c1', lastMessageAt: 1, lastMessagePreview: 'x'),
       const ChatSummary(guid: 'c2', lastMessageAt: 2, lastMessagePreview: 'y'),
     ]);
-    await store.setChatHidden('c1', true);
+    await store.applyChatVisibility({'c1'});
 
     expect(await store.hiddenChatCount(), 1);
     expect((await store.listChats()).map((c) => c.guid), ['c2']);
 
-    expect(await store.releaseHiddenChats(['c1']), 1);
+    await store.applyChatVisibility({});
     expect((await store.listChats()).length, 2);
   });
 
@@ -622,7 +623,7 @@ void main() {
     expect((await store.listMessages('chat-1')), hasLength(1));
   });
 
-  test('hidden chat is hidden locally and always visible overrides', () async {
+  test('synced hiding overrides always-visible debug flags', () async {
     await store.upsertChats([
       const ChatSummary(guid: 'noise', hasRenderableMessages: false),
     ]);
@@ -632,8 +633,8 @@ void main() {
     await store.setChatAlwaysVisible('noise', true);
     expect(await store.listChats(), hasLength(1));
 
-    await store.setChatHidden('noise', true);
-    expect(await store.listChats(), hasLength(1));
+    await store.applyChatVisibility({'noise'});
+    expect(await store.listChats(), isEmpty);
   });
 
   test('chat flags export + pending-restore round trip (C54)', () async {
@@ -647,23 +648,22 @@ void main() {
       ),
     ]);
     await store.setChatPinned('c1', true);
-    await store.setChatHidden('c2', true);
+    await store.applyChatVisibility({'c2'});
 
     final exported = await store.exportChatFlags();
-    expect(exported.keys, containsAll(<String>['c1', 'c2']));
+    expect(exported.keys, ['c1']);
     expect(exported.containsKey('plain'), isFalse);
     expect(exported['c1']!['pinned'], 1);
-    expect(exported['c2']!['hidden'], 1);
+    expect(exported['c1']!.containsKey('hidden'), isFalse);
 
     // Simulate a restore onto a fresh cache: pending flags applied as chats sync.
     await store.clearAll();
     await store.setPendingChatFlags(exported);
-    // c1 not synced yet → its flag stays pending; c2 synced → its flag applies.
     await store.upsertChats([
       const ChatSummary(guid: 'c2', lastMessageAt: 20, lastMessagePreview: 'y'),
     ]);
     await store.applyPendingChatFlags();
-    // c2 is now hidden: excluded by default, present with includeHidden.
+    // Cache clearing preserves synced visibility.
     expect((await store.listChats()).where((c) => c.guid == 'c2'), isEmpty);
     expect(
       (await store.listChats(includeHidden: true)).where((c) => c.guid == 'c2'),

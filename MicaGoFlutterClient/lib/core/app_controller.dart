@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'models/connection_profile.dart';
 import 'models/server_urls.dart';
 import 'network/api_client.dart';
+import 'network/chat_preference_sync.dart';
 import 'network/connection_candidate.dart';
 import 'network/endpoint_utils.dart';
 import 'network/device_identity.dart';
@@ -119,6 +120,14 @@ class ForegroundMessageAlert {
 class AppController extends ChangeNotifier {
   final SecureStore store;
   final LocalCacheStore cache = LocalCacheStore();
+  late final ChatPreferenceSync chatPreferences = ChatPreferenceSync(
+    cache: cache,
+    api: () => _api,
+    onChanged: () {
+      if (!_chatReloadController.isClosed) _chatReloadController.add(null);
+      notifyListeners();
+    },
+  );
   static const _customAvatarPrefix = 'custom_avatar:';
   static const inAppNotificationsStorageKey =
       'micago.in_app_notifications_enabled.v1';
@@ -133,8 +142,9 @@ class AppController extends ChangeNotifier {
   /// persist [_connectionProblemDelay] before anything is shown, so opening the
   /// app (or a brief reconnect) never flashes a scary banner — the common
   /// "点进去还没连上就直接报错" case. Cleared the instant the link is healthy.
-  final ValueNotifier<bool> connectionProblemConfirmed =
-      ValueNotifier<bool>(false);
+  final ValueNotifier<bool> connectionProblemConfirmed = ValueNotifier<bool>(
+    false,
+  );
   static const Duration _connectionProblemDelay = Duration(seconds: 10);
   Timer? _connectionProblemTimer;
 
@@ -179,6 +189,9 @@ class AppController extends ChangeNotifier {
     // connection:updated — refresh our candidates so we follow the new LAN/
     // Public URLs without the user rescanning a QR.
     _connSub = ws.events.listen((e) {
+      if (e.type == 'chat-preferences:changed') {
+        unawaited(chatPreferences.sync());
+      }
       if (e.type == 'connection:updated') {
         unawaited(refreshServerUrls());
       } else if (e.type == 'message:new') {
@@ -196,6 +209,7 @@ class AppController extends ChangeNotifier {
   // a system notification. The app shell updates this from lifecycle events.
   bool _foreground = true;
   bool get isForeground => _foreground;
+
   /// C77: the connection watchdog only counts **foreground** time.
   ///
   /// Locking the screen cuts the network and pauses/throttles Dart timers, so a
@@ -337,8 +351,7 @@ class AppController extends ChangeNotifier {
 
   /// Called by the app shell on foreground resume (lightweight refresh).
   void onResume() {
-    if (hasProfile && ws.status != WsStatus.connected) {
-    }
+    if (hasProfile && ws.status != WsStatus.connected) {}
     _refresh.onResume();
   }
 
@@ -384,6 +397,7 @@ class AppController extends ChangeNotifier {
         cache.open,
         timeout: const Duration(seconds: 4),
       );
+      await chatPreferences.initialize();
       // C63: arm the persistent media disk cache (photos/videos/previews);
       // until/unless this resolves, media falls back to memory+network.
       await _bootstrapStep(
@@ -659,7 +673,7 @@ class AppController extends ChangeNotifier {
       // C29b: this is a user-visible connect attempt — arm the 10s watchdog so
       // the user gets a clear "can't reach the server" error instead of being
       // stuck on "Reconnecting…" forever.
-      }
+    }
     return selectReachableCandidate(reason: reason);
   }
 
@@ -860,6 +874,7 @@ class AppController extends ChangeNotifier {
     }
     _catchUpInFlight = true;
     try {
+      await chatPreferences.sync();
       final cursor = realtimeDiagnostics.lastAppliedEventCursor;
       realtimeDiagnostics.lastCatchUpCursor = cursor;
       await cache.writeMetadata('last_catch_up_cursor', cursor ?? '');
@@ -1048,7 +1063,7 @@ class AppController extends ChangeNotifier {
   void _onWebSocketStatusChanged() {
     if (ws.status == WsStatus.connected) {
       _serverReachable = true;
-        _clearConnectionProblem();
+      _clearConnectionProblem();
     }
     // Surface a user-visible notice for any status transition (connect, lost,
     // reconnecting, disconnect). De-dup is handled in the pure derivation.
@@ -1166,9 +1181,9 @@ class AppController extends ChangeNotifier {
   Future<List<HiddenMessageRecord>> hiddenMessages() => cache.hiddenMessages();
 
   Future<int> releaseHiddenChats(Iterable<String> guids) async {
-    final n = await cache.releaseHiddenChats(guids);
-    if (!_chatReloadController.isClosed) _chatReloadController.add(null);
-    return n;
+    final ids = guids.toSet();
+    await chatPreferences.setHidden(ids, false);
+    return ids.length;
   }
 
   Future<int> releaseHiddenMessages(Iterable<String> guids) =>
@@ -1485,7 +1500,11 @@ class AppController extends ChangeNotifier {
   ) async {
     final guid = (chatGuid ?? msg.chatGuid ?? '').trim();
     if (!_foreground || guid.isEmpty || msg.isFromMe) return;
-    if (isChatActive(guid) || isChatMuted(guid)) return;
+    if (isChatActive(guid) ||
+        isChatMuted(guid) ||
+        chatPreferences.isHidden(guid)) {
+      return;
+    }
     if (isReactionMessage(msg)) return;
     // C75: only genuinely fresh messages raise an in-app banner. A catch-up
     // after being offline delivers old rows as "new to this device"; alerting
@@ -1555,7 +1574,10 @@ class AppController extends ChangeNotifier {
       return; // tapbacks shouldn't raise a notification
     }
     final chatGuid = chatGuidFromWsEvent(e);
-    if (chatGuid != null && isChatMuted(chatGuid)) return;
+    if (chatGuid != null &&
+        (isChatMuted(chatGuid) || chatPreferences.isHidden(chatGuid))) {
+      return;
+    }
     final isGroup = _isGroupChatGuid(chatGuid);
     final contactName = contactNameResolver?.call(msg.handleId);
     final senderName = messageNotificationTitle(
@@ -1842,7 +1864,7 @@ class AppController extends ChangeNotifier {
   /// opens the conversation (after a delta sync) when possible.
   final ValueNotifier<String?> pendingOpenChat = ValueNotifier<String?>(null);
   void requestOpenChat(String chatGuid) {
-    if (chatGuid.isEmpty) return;
+    if (chatGuid.isEmpty || chatPreferences.isHidden(chatGuid)) return;
     pendingOpenChat.value = chatGuid;
     // C32: opening a chat dismisses its stacked conversation notification.
     clearChatNotification?.call(chatGuid);
@@ -2203,6 +2225,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    chatPreferences.dispose();
     _heartbeatTimer?.cancel();
     _connectionProblemTimer?.cancel();
     unawaited(_connSub?.cancel());

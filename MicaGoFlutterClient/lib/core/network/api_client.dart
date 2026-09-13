@@ -102,6 +102,12 @@ class ServerNotificationConfig {
 /// machine-readable string from the server error envelope (`{"error":{...}}`)
 /// or a client-side code (`network_error`, `timeout`, `bad_response`).
 class ApiException implements Exception {
+  LocalSendState get sendState => code == 'send_confirmation_timeout'
+      ? LocalSendState.sentUnconfirmed
+      : const {'timeout', 'network_error', 'bad_response'}.contains(code) ||
+            const {502, 503, 504}.contains(statusCode)
+      ? LocalSendState.pending
+      : LocalSendState.failed;
   final String code;
   final String message;
   final int? statusCode;
@@ -203,6 +209,32 @@ class ApiClient {
     final base = Uri.parse('${normalizeBaseUrl(baseUrl)}$path');
     if (query == null || query.isEmpty) return base;
     return base.replace(queryParameters: {...base.queryParameters, ...query});
+  }
+
+  Future<Map<String, dynamic>> getChatPreferences() async {
+    final response = await _send(
+      () => _http
+          .get(_uri('/api/chat-preferences'), headers: _authHeaders)
+          .timeout(timeout),
+    );
+    if (response.statusCode != 200) throw _errorFrom(response);
+    return _decodeObject(response);
+  }
+
+  Future<Map<String, dynamic>> patchChatPreferences(
+    Map<String, dynamic> mutation,
+  ) async {
+    final response = await _send(
+      () => _http
+          .patch(
+            _uri('/api/chat-preferences'),
+            headers: _jsonHeaders,
+            body: jsonEncode(mutation),
+          )
+          .timeout(timeout),
+    );
+    if (response.statusCode != 200) throw _errorFrom(response);
+    return _decodeObject(response);
   }
 
   Map<String, String> get _authHeaders => {
@@ -578,7 +610,14 @@ class ApiClient {
     if (res.statusCode != 200) {
       throw _errorFrom(res);
     }
-    return MessageModel.fromJson(_decodeObject(res));
+    final confirmed = MessageModel.fromJson(_decodeObject(res));
+    if (confirmed.guid.isEmpty) {
+      throw const ApiException(
+        code: 'bad_response',
+        message: 'Missing send confirmation.',
+      );
+    }
+    return confirmed;
   }
 
   /// `GET /api/sync/settings` — the server's authoritative sync settings,

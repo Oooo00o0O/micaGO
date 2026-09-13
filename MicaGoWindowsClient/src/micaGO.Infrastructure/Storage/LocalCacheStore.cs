@@ -70,6 +70,10 @@ public sealed class LocalCacheStore : IDisposable
                     date_created INTEGER NOT NULL,
                     json TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS send_confirmations (
+                    chat_guid TEXT NOT NULL, temp_id TEXT NOT NULL, server_guid TEXT NOT NULL,
+                    PRIMARY KEY(chat_guid,temp_id), UNIQUE(chat_guid,server_guid)
+                );
                 """, cancellationToken);
             await MigrateMessageIdentityAsync(db, cancellationToken);
             if (!await HasColumnAsync(db, "contacts", "contact_id", cancellationToken))
@@ -110,14 +114,36 @@ public sealed class LocalCacheStore : IDisposable
             await using var transaction = db.BeginTransaction();
             foreach (var message in messages.Where(item => !item.IsPending))
             {
+                await ReconcileUploadAsync(db,transaction,message,cancellationToken);
                 await using var cmd = db.CreateCommand(); cmd.Transaction = transaction;
                 cmd.CommandText = "INSERT INTO messages(guid,chat_guid,date_created,json) VALUES($id,$chat,$at,$json) ON CONFLICT(chat_guid,guid) DO UPDATE SET date_created=excluded.date_created,json=excluded.json";
-                cmd.Parameters.AddWithValue("$id", message.Id); cmd.Parameters.AddWithValue("$chat", message.ChatId); cmd.Parameters.AddWithValue("$at", message.DateCreated); cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(message));
+                cmd.Parameters.AddWithValue("$id", message.Id); cmd.Parameters.AddWithValue("$chat", message.ChatId); cmd.Parameters.AddWithValue("$at", message.DateCreated); cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(message with{PresentationId=null}));
                 await cmd.ExecuteNonQueryAsync(cancellationToken);
             }
             await transaction.CommitAsync(cancellationToken);
         }
         finally { _gate.Release(); }
+    }
+
+    private static async Task ReconcileUploadAsync(SqliteConnection db,SqliteTransaction tx,Message server,CancellationToken ct)
+    {
+        if(!server.IsOutgoing)return;
+        await using var claimed=db.CreateCommand();claimed.Transaction=tx;
+        claimed.CommandText="SELECT temp_id FROM send_confirmations WHERE chat_guid=$chat AND server_guid=$guid";
+        claimed.Parameters.AddWithValue("$chat",server.ChatId);claimed.Parameters.AddWithValue("$guid",server.Id);
+        if(await claimed.ExecuteScalarAsync(ct) is not null)return;
+        var pending=new List<Message>();
+        await using(var query=db.CreateCommand()) {
+            query.Transaction=tx;query.CommandText="SELECT json FROM pending_uploads WHERE chat_guid=$chat";query.Parameters.AddWithValue("$chat",server.ChatId);
+            await using var reader=await query.ExecuteReaderAsync(ct);
+            while(await reader.ReadAsync(ct)) pending.Add(JsonSerializer.Deserialize<PendingUpload>(reader.GetString(0))!.ToMessage());
+        }
+        var match=server.PresentationId is{} exact?pending.FirstOrDefault(row=>row.PresentationKey==exact):MessageSemantics.MatchingPending(pending,server);
+        if(match is null)return;
+        await using var command=db.CreateCommand();command.Transaction=tx;
+        command.CommandText="INSERT INTO send_confirmations(chat_guid,temp_id,server_guid) VALUES($chat,$temp,$server); DELETE FROM pending_uploads WHERE temp_id=$temp AND chat_guid=$chat;";
+        command.Parameters.AddWithValue("$chat",server.ChatId);command.Parameters.AddWithValue("$temp",match.Id);command.Parameters.AddWithValue("$server",server.Id);
+        await command.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<IReadOnlyList<ChatSummary>> GetChatsAsync(CancellationToken cancellationToken = default) =>
@@ -163,7 +189,19 @@ public sealed class LocalCacheStore : IDisposable
 
     public async Task UpsertPendingUploadAsync(PendingUpload upload,CancellationToken cancellationToken=default)
     {
-        await EnsureInitializedAsync(cancellationToken);await _gate.WaitAsync(cancellationToken);try{await using var db=new SqliteConnection(_connectionString);await db.OpenAsync(cancellationToken);await using var cmd=db.CreateCommand();cmd.CommandText="INSERT INTO pending_uploads(temp_id,chat_guid,date_created,json) VALUES($id,$chat,$at,$json) ON CONFLICT(temp_id) DO UPDATE SET json=excluded.json,date_created=excluded.date_created";cmd.Parameters.AddWithValue("$id",upload.TempId);cmd.Parameters.AddWithValue("$chat",upload.ChatId);cmd.Parameters.AddWithValue("$at",upload.DateCreated);cmd.Parameters.AddWithValue("$json",JsonSerializer.Serialize(upload));await cmd.ExecuteNonQueryAsync(cancellationToken);}finally{_gate.Release();}
+        await WritePendingUploadAsync(upload,true,cancellationToken);
+    }
+    public Task UpdatePendingUploadAsync(PendingUpload upload,CancellationToken cancellationToken=default)=>WritePendingUploadAsync(upload,false,cancellationToken);
+    private async Task WritePendingUploadAsync(PendingUpload upload,bool insert,CancellationToken ct) {
+        await EnsureInitializedAsync(ct);await _gate.WaitAsync(ct);
+        try {
+            await using var db=new SqliteConnection(_connectionString);await db.OpenAsync(ct);await using var cmd=db.CreateCommand();
+            cmd.CommandText=insert?
+                "INSERT INTO pending_uploads(temp_id,chat_guid,date_created,json) SELECT $id,$chat,$at,$json WHERE NOT EXISTS(SELECT 1 FROM send_confirmations WHERE chat_guid=$chat AND temp_id=$id) ON CONFLICT(temp_id) DO UPDATE SET json=excluded.json,date_created=excluded.date_created":
+                "UPDATE pending_uploads SET json=$json,date_created=$at WHERE temp_id=$id AND chat_guid=$chat";
+            cmd.Parameters.AddWithValue("$id",upload.TempId);cmd.Parameters.AddWithValue("$chat",upload.ChatId);cmd.Parameters.AddWithValue("$at",upload.DateCreated);cmd.Parameters.AddWithValue("$json",JsonSerializer.Serialize(upload));
+            await cmd.ExecuteNonQueryAsync(ct);
+        }finally{_gate.Release();}
     }
     public async Task<IReadOnlyList<PendingUpload>> GetPendingUploadsAsync(string chatId,CancellationToken cancellationToken=default)
     {
@@ -228,43 +266,6 @@ public sealed class LocalCacheStore : IDisposable
         var ids=guids.Where(value=>!string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();if(ids.Length==0)return 0;
         await EnsureInitializedAsync(cancellationToken);await _gate.WaitAsync(cancellationToken);
         try{await using var db=new SqliteConnection(_connectionString);await db.OpenAsync(cancellationToken);await using var tx=db.BeginTransaction();var restored=0;foreach(var guid in ids){await using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText="DELETE FROM hidden_messages WHERE guid=$id";cmd.Parameters.AddWithValue("$id",guid);restored+=await cmd.ExecuteNonQueryAsync(cancellationToken);}await tx.CommitAsync(cancellationToken);return restored;}
-        finally{_gate.Release();}
-    }
-
-    public async Task HideChatsAsync(IEnumerable<string> guids, CancellationToken cancellationToken = default)
-    {
-        await EnsureInitializedAsync(cancellationToken); await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            await using var db = new SqliteConnection(_connectionString); await db.OpenAsync(cancellationToken);
-            await using var tx = db.BeginTransaction();
-            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            foreach (var guid in guids.Where(value => !string.IsNullOrWhiteSpace(value)))
-            {
-                await using var cmd = db.CreateCommand(); cmd.Transaction = tx;
-                cmd.CommandText = "INSERT INTO hidden_chats(guid,hidden_at) VALUES($id,$at) ON CONFLICT(guid) DO NOTHING";
-                cmd.Parameters.AddWithValue("$id", guid); cmd.Parameters.AddWithValue("$at", now);
-                await cmd.ExecuteNonQueryAsync(cancellationToken);
-            }
-            await tx.CommitAsync(cancellationToken);
-        }
-        finally { _gate.Release(); }
-    }
-
-    public async Task<int> RestoreHiddenChatsAsync(IEnumerable<string> guids,CancellationToken cancellationToken=default)
-    {
-        var ids=guids.Where(value=>!string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        if(ids.Length==0)return 0;
-        await EnsureInitializedAsync(cancellationToken);await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            await using var db=new SqliteConnection(_connectionString);await db.OpenAsync(cancellationToken);await using var tx=db.BeginTransaction();var restored=0;
-            foreach(var guid in ids)
-            {
-                await using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText="DELETE FROM hidden_chats WHERE guid=$id";cmd.Parameters.AddWithValue("$id",guid);restored+=await cmd.ExecuteNonQueryAsync(cancellationToken);
-            }
-            await tx.CommitAsync(cancellationToken);return restored;
-        }
         finally{_gate.Release();}
     }
 

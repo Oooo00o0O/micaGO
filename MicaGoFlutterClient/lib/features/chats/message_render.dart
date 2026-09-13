@@ -169,6 +169,7 @@ enum MessageRenderableKind {
 
 /// Outgoing/incoming delivery state, computed in one place.
 enum MessageDeliveryState {
+  awaitingConfirmation,
   incoming,
   sending,
   sent,
@@ -549,8 +550,10 @@ MessageDeliveryState deliveryStateFor(MessageModel m) {
   if (m.localState == LocalSendState.failed || m.errorCode > 0) {
     return MessageDeliveryState.failed;
   }
-  if (m.localState == LocalSendState.pending ||
-      m.localState == LocalSendState.sending) {
+  if (m.localState == LocalSendState.pending) {
+    return MessageDeliveryState.awaitingConfirmation;
+  }
+  if (m.localState == LocalSendState.sending) {
     return MessageDeliveryState.sending;
   }
   if (m.isRead || m.dateRead != null) return MessageDeliveryState.read;

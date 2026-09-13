@@ -79,6 +79,7 @@ final class AppModel: ObservableObject {
 
     // Sync control (v0.11.3)
     @Published var syncRules: SyncRulesResponse?
+    let chatPreferences = ChatPreferenceStore()
     @Published var chatsList: [ChatSummary] = []
     @Published var syncBusy = false
     @Published var syncSettings: SyncSettings = .defaults
@@ -285,6 +286,7 @@ final class AppModel: ObservableObject {
             lastError = "Server is up but the token was rejected. Check \(ConfigReader.configPath)."
             return
         }
+        await chatPreferences.sync(client: client)
 
         // Each fetch has INDEPENDENT error handling so one failing call never
         // blocks the others. Previously status/devices/urls shared one do/catch,

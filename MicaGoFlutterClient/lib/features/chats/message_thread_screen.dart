@@ -731,6 +731,16 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     final contacts = context.watch<ContactsService>();
     final prefs = context.watch<MessageDisplayController>().prefs;
     final app = context.watch<AppController>();
+    if (_routeGuids.any(app.chatPreferences.isHidden)) {
+      if (!widget.embedded) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+            Navigator.of(context).pop();
+          }
+        });
+      }
+      return const SizedBox.shrink();
+    }
     final api = app.api;
     // Server-explicit capability (C21c) — same source as the send gates;
     // rebuilds when the SMS-send setting changes.
@@ -3422,6 +3432,7 @@ String _bubbleSemanticLabel(
     final state = deliveryStateFor(message);
     final key = switch (state) {
       MessageDeliveryState.sending => 'chat.sending',
+      MessageDeliveryState.awaitingConfirmation => 'chat.awaitingConfirmation',
       MessageDeliveryState.sent => 'chat.sent',
       MessageDeliveryState.delivered => 'chat.delivered',
       MessageDeliveryState.read => 'chat.read',
@@ -3987,6 +3998,9 @@ class _Footer extends StatelessWidget {
       switch (state) {
         case MessageDeliveryState.sending:
           parts.add(strings.t('chat.sending'));
+          break;
+        case MessageDeliveryState.awaitingConfirmation:
+          parts.add(strings.t('chat.awaitingConfirmation'));
           break;
         case MessageDeliveryState.sent:
           parts.add(strings.t('chat.sent'));

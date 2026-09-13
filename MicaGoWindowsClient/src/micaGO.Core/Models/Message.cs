@@ -7,6 +7,7 @@ public enum MessageDeliveryState
     Delivered,
     Read,
     Failed,
+    AwaitingConfirmation,
 }
 
 public sealed record Message(

@@ -15,6 +15,16 @@ enum L10n {
     }
 
     private static let en = [
+        "prefs.title": "Hidden Chats",
+        "prefs.description": "Hidden chats stay synced but leave the chat list and stop notifications on all devices. Sync Control rules stay unchanged.",
+        "prefs.select": "Choose a chat",
+        "prefs.hide": "Hide",
+        "prefs.restore": "Restore",
+        "prefs.blocked": "Sync blocked",
+        "prefs.offline": "Not synced yet. Retry when connected.",
+        "prefs.conflict": "Another device changed these preferences. Choose which changes to keep.",
+        "prefs.server": "Keep server settings",
+        "prefs.mine": "Apply my changes",
         "sidebar.dashboard": "Dashboard",
         "sidebar.connections": "Connections",
         "sidebar.syncControl": "Sync Control",
@@ -54,6 +64,16 @@ enum L10n {
     ]
 
     private static let zhHans = [
+        "prefs.title": "隐藏聊天",
+        "prefs.description": "隐藏聊天继续同步，但在所有设备的聊天列表中隐藏并停止通知。同步控制规则保持不变。",
+        "prefs.select": "选择聊天",
+        "prefs.hide": "隐藏",
+        "prefs.restore": "恢复显示",
+        "prefs.blocked": "已阻止同步",
+        "prefs.offline": "尚未同步，连接后重试。",
+        "prefs.conflict": "其他设备已修改隐藏状态，请选择要保留的设置。",
+        "prefs.server": "保留服务器设置",
+        "prefs.mine": "应用我的修改",
         "sidebar.dashboard": "仪表盘",
         "sidebar.connections": "连接",
         "sidebar.syncControl": "同步控制",
@@ -92,6 +112,16 @@ enum L10n {
     ]
 
     private static let zhHant = [
+        "prefs.title": "隱藏聊天",
+        "prefs.description": "隱藏聊天繼續同步，但在所有裝置的聊天列表中隱藏並停止通知。同步控制規則保持不變。",
+        "prefs.select": "選擇聊天",
+        "prefs.hide": "隱藏",
+        "prefs.restore": "恢復顯示",
+        "prefs.blocked": "已阻止同步",
+        "prefs.offline": "尚未同步，連線後重試。",
+        "prefs.conflict": "其他裝置已修改隱藏狀態，請選擇要保留的設定。",
+        "prefs.server": "保留伺服器設定",
+        "prefs.mine": "套用我的修改",
         "sidebar.dashboard": "儀表板",
         "sidebar.connections": "連線",
         "sidebar.syncControl": "同步控制",
