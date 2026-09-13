@@ -33,26 +33,63 @@ class RouteProbe {
   });
 }
 
-enum RouteConnectionState { connected, connecting, unreachable }
-
-/// What the route card's status line reports. A confirmed connection problem
-/// wins; otherwise the app is connected only once a route is active and the
-/// realtime socket is up, and is still connecting in every other case.
-RouteConnectionState routeConnectionState({
-  required bool hasActiveRoute,
-  required bool realtimeConnected,
-  required bool problemConfirmed,
-}) {
-  if (problemConfirmed) return RouteConnectionState.unreachable;
-  if (hasActiveRoute && realtimeConnected) {
-    return RouteConnectionState.connected;
-  }
-  return RouteConnectionState.connecting;
+/// C85: what one row of the Settings route card shows. The radio marks the
+/// route in use (switching / connected / connecting) and only [available]
+/// rows can be tapped. A reachability check never changes the connection — it
+/// only decides whether a row is tappable.
+enum RouteRowStatus {
+  switching,
+  connected,
+  connecting,
+  checking,
+  available,
+  unavailable,
 }
 
+RouteRowStatus routeRowStatus({
+  required String baseUrl,
+  required String? switchingTo,
+  required String? activeBaseUrl,
+  required bool realtimeConnected,
+  required bool probing,
+  required RouteProbe? probe,
+}) {
+  if (baseUrl == switchingTo) return RouteRowStatus.switching;
+  if (baseUrl == activeBaseUrl) {
+    // The route in use stays "connected" while realtime is up, even if a
+    // Settings check of it just timed out.
+    if (realtimeConnected) return RouteRowStatus.connected;
+    if (probing || probe == null || probe.reachable) {
+      return RouteRowStatus.connecting;
+    }
+  }
+  if (probing || probe == null) return RouteRowStatus.checking;
+  return probe.reachable
+      ? RouteRowStatus.available
+      : RouteRowStatus.unavailable;
+}
+
+/// Outcome of a manual route switch, used for the Settings snackbar.
+enum RouteSwitchResult {
+  /// Connected through the requested route.
+  switched,
+
+  /// The requested route failed and automatic selection connected another.
+  fellBack,
+
+  /// Nothing was reachable.
+  unreachable,
+
+  /// A newer selection run replaced this one; say nothing.
+  superseded,
+}
+
+/// [pinFirst] moves the manually chosen route to the front (connect order);
+/// Settings passes false so rows keep a stable order while switching.
 List<ConnectionCandidate> connectionCandidatesForProfile(
-  ConnectionProfile profile,
-) {
+  ConnectionProfile profile, {
+  bool pinFirst = true,
+}) {
   // All advertised LAN routes (C26 multi-LAN), not just the first interface.
   final lanCandidates = <ConnectionCandidate>[
     for (final r in profile.lanRoutes)
@@ -100,7 +137,7 @@ List<ConnectionCandidate> connectionCandidatesForProfile(
   if (out.isEmpty && fallback.baseUrl.isNotEmpty) out.add(fallback);
   // Honour a manual route pin: move the selected candidate to the front so it
   // is tried first on connect/reconnect, while keeping the others as fallbacks.
-  final selected = _nonEmpty(profile.selectedBaseUrl);
+  final selected = pinFirst ? _nonEmpty(profile.selectedBaseUrl) : null;
   if (selected != null) {
     final normSelected = normalizeBaseUrl(selected);
     final idx = out.indexWhere((c) => c.baseUrl == normSelected);

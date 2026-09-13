@@ -21,18 +21,32 @@ Four components:
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
 
+## Route card: radio = route in use (C85, client-only)
+
+- `_RouteSwitcher` lists `AppController.routeOptions` (stable order —
+  `connectionCandidatesForProfile(pinFirst: false)`) with full base URLs; each
+  row's subtitle is the pure `routeRowStatus` (switching / connected · ms /
+  connecting / checking / available · ms / unavailable). No bottom status line
+  and no Automatic row. The radio marks the route **in use**; only *available*
+  rows are tappable. **Checking never switches or disconnects** — it only
+  greys the row (`_probingRoutes`, re-probed via `probeAllRoutes()` each time
+  Settings opens); the route in use stays "connected" while realtime is up even
+  if that check times out.
+- Tapping switches now: `selectRoute` stores `selectedBaseUrl`, keeps the old
+  route serving until the new one connects, and returns a `RouteSwitchResult`
+  for the snackbar (switched / fell back / unreachable / superseded).
+- **The manual choice lasts until it drops.** `selectReachableCandidate` probes
+  the chosen route alone first (it used to join the parallel LAN run, where a
+  faster LAN could win); when it fails and another route connects,
+  `_dropChosenRoute` clears `selectedBaseUrl` → automatic again. If nothing is
+  reachable the choice is kept. `_selectionEpoch` lets only the newest run
+  activate a route, so an in-flight reconnect can't undo a manual switch.
+  Tests: `route_status_test.dart`.
+
 ## Route card + artifacts-only CI + bilingual site (C84)
 
-- **Settings route card** (`_RouteSwitcher`, `settings_screen.dart`): no
-  "Automatic" row and no LAN/Public prefixes. Each route shows its full base URL
-  plus availability and latency from `AppController.routeProbes` (every
-  `_probeCandidate` records a `RouteProbe`; the card calls `probeAllRoutes()`
-  on open). The radio only marks a *preferred* route (`toggleable`, so tapping
-  it again returns to automatic), and each change shows a SnackBar (prefer →
-  "优先使用这条，连不上时会自动换线路", clear → "已恢复自动选择线路"). The card's
-  last line is the live status from the pure `routeConnectionState`
-  (connected · URL · ms / connecting / can't reach, retrying), rebuilt from
-  `app.ws` + `connectionProblemConfirmed`. Test: `route_status_test.dart`.
+- ~~Settings route card with a "preferred" radio + bottom status line~~ —
+  superseded by C85 below.
 - **CI builds artifacts only.** Tag pushes and manual runs upload artifacts; the
   `publish` job is gone and releases are created by hand. Names follow the
   0.68.0 release: `micaGO-<v>-android-release.apk`,

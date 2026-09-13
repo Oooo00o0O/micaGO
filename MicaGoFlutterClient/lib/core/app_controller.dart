@@ -168,6 +168,9 @@ class AppController extends ChangeNotifier {
   ServerUrls? _serverUrls;
   ConnectionCandidate? _activeCandidate;
   final Map<String, RouteProbe> _routeProbes = {};
+  final Set<String> _probingRoutes = {};
+  String? _switchingRoute;
+  int _selectionEpoch = 0;
   final List<String> _connectionLog = <String>[];
   bool _bootstrapped = false;
   DateTime? _lastCatchUpSyncAt;
@@ -360,6 +363,19 @@ class AppController extends ChangeNotifier {
   ApiClient? get api => _api;
   ServerUrls? get serverUrls => _serverUrls;
   ConnectionCandidate? get activeCandidate => _activeCandidate;
+
+  /// Routes in a stable order for Settings (the chosen route is not moved).
+  List<ConnectionCandidate> get routeOptions {
+    final profile = _profile;
+    return profile == null
+        ? const []
+        : connectionCandidatesForProfile(profile, pinFirst: false);
+  }
+
+  /// Route a manual switch is currently connecting to.
+  String? get switchingRoute => _switchingRoute;
+
+  bool isProbingRoute(String baseUrl) => _probingRoutes.contains(baseUrl);
 
   /// Latest reachability check per route base URL.
   Map<String, RouteProbe> get routeProbes => Map.unmodifiable(_routeProbes);
@@ -624,23 +640,34 @@ class AppController extends ChangeNotifier {
     _rebuildApi();
   }
 
-  /// C26: pin a specific candidate (LAN interface or Public) as the route to use,
-  /// persist it, and immediately reconnect through it. Passing null clears the
-  /// pin and returns to automatic LAN-first selection.
-  Future<void> selectRoute(String? baseUrl) async {
+  /// C85: switch to [baseUrl] now and keep using it until it drops — then
+  /// [selectReachableCandidate] falls back and selection is automatic again.
+  /// The current route keeps serving until the new one is confirmed.
+  Future<RouteSwitchResult> selectRoute(String baseUrl) async {
     final profile = _profile;
-    if (profile == null) return;
-    final normalized = baseUrl == null || baseUrl.trim().isEmpty
-        ? null
-        : normalizeBaseUrl(baseUrl);
+    if (profile == null) return RouteSwitchResult.unreachable;
+    final normalized = normalizeBaseUrl(baseUrl);
     final next = profile.copyWith(selectedBaseUrl: normalized);
     _profile = next;
-    _activeCandidate = null;
-    await store.saveProfile(next);
-    _rebuildApi();
-    _logConnectionSelection('manual route selected: ${normalized ?? 'auto'}');
+    _switchingRoute = normalized;
+    _logConnectionSelection('manual route selected: $normalized');
     notifyListeners();
-    await selectReachableCandidate(reason: 'manual-route');
+    try {
+      await store.saveProfile(next);
+      final run = selectReachableCandidate(reason: 'manual-route');
+      final epoch = _selectionEpoch;
+      final ok = await run;
+      if (epoch != _selectionEpoch) return RouteSwitchResult.superseded;
+      if (!ok) return RouteSwitchResult.unreachable;
+      return _activeCandidate?.baseUrl == normalized
+          ? RouteSwitchResult.switched
+          : RouteSwitchResult.fellBack;
+    } finally {
+      if (_switchingRoute == normalized) {
+        _switchingRoute = null;
+        notifyListeners();
+      }
+    }
   }
 
   /// Checks every route in parallel so Settings can show availability and
@@ -659,6 +686,7 @@ class AppController extends ChangeNotifier {
     required bool reachable,
     Duration? latency,
   }) {
+    _probingRoutes.remove(candidate.baseUrl);
     _routeProbes[candidate.baseUrl] = RouteProbe(
       reachable: reachable,
       latency: latency,
@@ -708,24 +736,54 @@ class AppController extends ChangeNotifier {
   /// Manual retry from the cannot-connect dialog.
   Future<bool> retryInitialConnect() => connectForeground(reason: 'retry');
 
+  /// Connects through the best reachable route (C85).
+  ///
+  /// A route the user switched to (`selectedBaseUrl`) is tried on its own
+  /// first and kept while it connects. When it can't be reached and another
+  /// route connects instead, that choice is dropped so selection is automatic
+  /// again. Only the newest run may activate a route, so a reconnect that
+  /// started earlier can't undo a manual switch.
   Future<bool> selectReachableCandidate({
     required String reason,
     ConnectionCandidateKind? skipKind,
   }) async {
     final profile = _profile;
     if (profile == null) return false;
-    final allCandidates = connectionCandidatesForProfile(profile);
+    final epoch = ++_selectionEpoch;
+    final allCandidates = connectionCandidatesForProfile(
+      profile,
+      pinFirst: false,
+    );
+    final chosenUrl = profile.selectedBaseUrl?.trim().isNotEmpty == true
+        ? normalizeBaseUrl(profile.selectedBaseUrl!)
+        : null;
+    final chosen = allCandidates
+        .where((c) => c.baseUrl == chosenUrl && c.kind != skipKind)
+        .firstOrNull;
+    _logConnectionSelection(
+      'select candidate reason=$reason mode=${profile.mode.name} '
+      'chosen=${chosen?.baseUrl ?? 'auto'}',
+    );
+    _logConnectionSelection('all candidates: ${allCandidates.join(' | ')}');
+
+    if (chosen != null) {
+      final result = await _probeCandidate(profile, chosen);
+      if (epoch != _selectionEpoch) return false;
+      if (result.ok) {
+        _activateReachableCandidate(chosen, reason);
+        return true;
+      }
+      _logConnectionSelection('chosen route unreachable; trying the others');
+    }
+
     final filtered = allCandidates
-        .where((c) => c.kind != skipKind)
+        .where((c) => c.kind != skipKind && c.baseUrl != chosen?.baseUrl)
         .toList(growable: false);
     final candidates = await _orderedCandidatesForCurrentNetwork(
       profile,
       filtered,
     );
-    _logConnectionSelection(
-      'select candidate reason=$reason mode=${profile.mode.name}',
-    );
-    _logConnectionSelection('all candidates: ${allCandidates.join(' | ')}');
+    if (epoch != _selectionEpoch) return false;
     if (skipKind != null || !_sameCandidateOrder(filtered, candidates)) {
       _logConnectionSelection('trying candidates: ${candidates.join(' | ')}');
     }
@@ -733,6 +791,7 @@ class AppController extends ChangeNotifier {
     var i = 0;
     while (i < candidates.length) {
       final candidate = candidates[i];
+      final _CandidateProbeResult result;
       if (candidate.kind == ConnectionCandidateKind.lan) {
         final lanRun = <ConnectionCandidate>[];
         while (i < candidates.length &&
@@ -740,19 +799,16 @@ class AppController extends ChangeNotifier {
           lanRun.add(candidates[i]);
           i++;
         }
-        final result = lanRun.length > 1
+        result = lanRun.length > 1
             ? await _probeLanRun(profile, lanRun)
             : await _probeCandidate(profile, lanRun.single);
-        if (result.ok) {
-          _activateReachableCandidate(result.candidate, reason);
-          return true;
-        }
-        continue;
+      } else {
+        result = await _probeCandidate(profile, candidate);
+        i++;
       }
-
-      final result = await _probeCandidate(profile, candidate);
-      i++;
+      if (epoch != _selectionEpoch) return false;
       if (result.ok) {
+        _dropChosenRoute(chosen);
         _activateReachableCandidate(result.candidate, reason);
         return true;
       }
@@ -764,13 +820,27 @@ class AppController extends ChangeNotifier {
     return false;
   }
 
+  /// C85: the route the user switched to could not be reached and another
+  /// route connected, so selection goes back to automatic.
+  void _dropChosenRoute(ConnectionCandidate? chosen) {
+    final profile = _profile;
+    final selected = profile?.selectedBaseUrl;
+    if (chosen == null || profile == null || selected == null) return;
+    if (normalizeBaseUrl(selected) != chosen.baseUrl) return;
+    final next = profile.copyWith(selectedBaseUrl: null);
+    _profile = next;
+    unawaited(store.saveProfile(next));
+    _logConnectionSelection(
+      'chosen route ${chosen.baseUrl} dropped; automatic',
+    );
+  }
+
   Future<List<ConnectionCandidate>> _orderedCandidatesForCurrentNetwork(
     ConnectionProfile profile,
     List<ConnectionCandidate> candidates,
   ) async {
-    if (profile.selectedBaseUrl?.trim().isNotEmpty == true ||
-        (profile.mode != ConnectionMode.auto &&
-            profile.mode != ConnectionMode.lanFirst)) {
+    if (profile.mode != ConnectionMode.auto &&
+        profile.mode != ConnectionMode.lanFirst) {
       return candidates;
     }
     final public = candidates
@@ -840,6 +910,8 @@ class AppController extends ChangeNotifier {
     _logConnectionSelection(
       'checking ${candidate.label}: ${candidate.baseUrl}',
     );
+    _probingRoutes.add(candidate.baseUrl);
+    notifyListeners();
     final elapsed = Stopwatch()..start();
     final client = ApiClient(
       baseUrl: candidate.baseUrl,
@@ -869,6 +941,7 @@ class AppController extends ChangeNotifier {
       return _CandidateProbeResult.failed(candidate, elapsed.elapsed);
     } finally {
       client.close();
+      _probingRoutes.remove(candidate.baseUrl);
     }
   }
 

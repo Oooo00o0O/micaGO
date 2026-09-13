@@ -16,7 +16,6 @@ import '../../core/network/notification_display.dart';
 import '../../core/network/update_check.dart';
 import '../../core/network/websocket_client.dart';
 import '../../core/l10n/app_localizations.dart';
-import '../../core/models/connection_profile.dart';
 import '../../core/network/connection_candidate.dart';
 import '../../core/network/device_identity.dart';
 import '../../core/storage/local_cache_store.dart';
@@ -90,7 +89,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (profile != null)
                     _RouteSwitcher(
                       app: app,
-                      profile: profile,
                       onEdit: () => context.push(Routes.connection),
                     )
                   else
@@ -283,22 +281,18 @@ class _TwoActionRow extends StatelessWidget {
   }
 }
 
-/// C84: every advertised route with its full address, availability and
-/// latency. Selection is automatic; picking a route only makes it preferred
-/// (the others stay as fallbacks) and tapping it again returns to automatic.
-/// The last line states what the connection is doing right now.
+/// C85: every advertised route with its full address and live status. The
+/// radio marks the route in use; tapping an available route switches to it
+/// now and keeps it until it drops, after which selection is automatic again.
+/// Rows that are still being checked or are unavailable can't be tapped — the
+/// check only decides that, it never switches or disconnects.
 class _RouteSwitcher extends StatefulWidget {
   final AppController app;
-  final ConnectionProfile profile;
 
   /// C76: the connection card is the single entry point for editing the
   /// pairing (the old duplicate "Edit connection" button is gone).
   final VoidCallback onEdit;
-  const _RouteSwitcher({
-    required this.app,
-    required this.profile,
-    required this.onEdit,
-  });
+  const _RouteSwitcher({required this.app, required this.onEdit});
 
   @override
   State<_RouteSwitcher> createState() => _RouteSwitcherState();
@@ -311,22 +305,20 @@ class _RouteSwitcherState extends State<_RouteSwitcher> {
     unawaited(widget.app.probeAllRoutes());
   }
 
-  void _select(String? baseUrl) {
+  Future<void> _switchTo(String baseUrl) async {
     final strings = MicaLocalizations.of(context);
-    unawaited(widget.app.selectRoute(baseUrl));
-    ScaffoldMessenger.of(context)
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await widget.app.selectRoute(baseUrl);
+    final key = switch (result) {
+      RouteSwitchResult.switched => 'settings.routeSwitchedToast',
+      RouteSwitchResult.fellBack => 'settings.routeFellBackToast',
+      RouteSwitchResult.unreachable => 'settings.routeSwitchFailedToast',
+      RouteSwitchResult.superseded => null,
+    };
+    if (key == null) return;
+    messenger
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            strings.t(
-              baseUrl == null
-                  ? 'settings.routeAutoToast'
-                  : 'settings.routePreferredToast',
-            ),
-          ),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(strings.t(key))));
   }
 
   @override
@@ -337,71 +329,68 @@ class _RouteSwitcherState extends State<_RouteSwitcher> {
     final scheme = theme.colorScheme;
 
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        app,
-        app.ws,
-        app.connectionProblemConfirmed,
-      ]),
+      listenable: Listenable.merge([app, app.ws]),
       builder: (context, _) {
-        final probes = app.routeProbes;
-        final active = app.activeCandidate;
+        final routes = app.routeOptions;
+        final active = app.activeCandidate?.baseUrl;
+        final switching = app.switchingRoute;
+        final statuses = {
+          for (final c in routes)
+            c.baseUrl: routeRowStatus(
+              baseUrl: c.baseUrl,
+              switchingTo: switching,
+              activeBaseUrl: active,
+              realtimeConnected: app.ws.status == WsStatus.connected,
+              probing: app.isProbingRoute(c.baseUrl),
+              probe: app.routeProbes[c.baseUrl],
+            ),
+        };
+        final activeStatus = statuses[active];
+        final inUse = switching != null && statuses.containsKey(switching)
+            ? switching
+            : activeStatus == RouteRowStatus.connected ||
+                  activeStatus == RouteRowStatus.connecting
+            ? active
+            : null;
+        final muted = scheme.onSurface.withValues(alpha: 0.38);
 
-        Widget availability(ConnectionCandidate c) {
-          final probe = probes[c.baseUrl];
-          if (probe == null) return Text(strings.t('settings.routeChecking'));
-          if (!probe.reachable) {
-            return Text(
+        Widget statusText(String baseUrl, RouteRowStatus status) {
+          final ms = app.routeProbes[baseUrl]?.latency?.inMilliseconds;
+          String withMs(String label) => ms == null ? label : '$label · $ms ms';
+          return switch (status) {
+            RouteRowStatus.switching => Text(
+              strings.t('settings.routeSwitching'),
+              style: TextStyle(color: scheme.primary),
+            ),
+            RouteRowStatus.connected => Text(
+              withMs(strings.t('settings.routeConnected')),
+              style: TextStyle(color: scheme.primary),
+            ),
+            RouteRowStatus.connecting => Text(
+              strings.t('settings.routeConnecting'),
+            ),
+            RouteRowStatus.checking => Text(
+              strings.t('settings.routeChecking'),
+              style: TextStyle(color: muted),
+            ),
+            RouteRowStatus.available => Text(
+              withMs(strings.t('settings.routeReachable')),
+            ),
+            RouteRowStatus.unavailable => Text(
               strings.t('settings.routeUnreachable'),
-              style: TextStyle(color: scheme.error),
-            );
-          }
-          final ms = probe.latency?.inMilliseconds;
-          final label = strings.t('settings.routeReachable');
-          return Text(
-            ms == null ? label : '$label · $ms ms',
-            style: TextStyle(color: scheme.primary),
-          );
+              style: TextStyle(color: muted),
+            ),
+          };
         }
 
-        final state = routeConnectionState(
-          hasActiveRoute: active != null,
-          realtimeConnected: app.ws.status == WsStatus.connected,
-          problemConfirmed: app.connectionProblemConfirmed.value,
-        );
-        final activeMs = active == null
-            ? null
-            : probes[active.baseUrl]?.latency?.inMilliseconds;
-        final (
-          IconData statusIcon,
-          Color statusColor,
-          String statusText,
-        ) = switch (state) {
-          RouteConnectionState.connected => (
-            Icons.check_circle,
-            scheme.primary,
-            [
-              strings
-                  .t('settings.routeStatusConnected')
-                  .replaceAll('{url}', active!.baseUrl),
-              if (activeMs != null) '$activeMs ms',
-            ].join(' · '),
-          ),
-          RouteConnectionState.connecting => (
-            Icons.sync,
-            scheme.onSurfaceVariant,
-            strings.t('settings.routeStatusConnecting'),
-          ),
-          RouteConnectionState.unreachable => (
-            Icons.error_outline,
-            scheme.error,
-            strings.t('settings.routeStatusRetrying'),
-          ),
-        };
-
         return Card(
-          child: RadioGroup<String?>(
-            groupValue: widget.profile.selectedBaseUrl,
-            onChanged: _select,
+          child: RadioGroup<String>(
+            groupValue: inUse,
+            onChanged: (value) {
+              if (value == null || value == inUse) return;
+              if (statuses[value] != RouteRowStatus.available) return;
+              unawaited(_switchTo(value));
+            },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -412,12 +401,14 @@ class _RouteSwitcherState extends State<_RouteSwitcher> {
                     style: theme.textTheme.titleSmall,
                   ),
                 ),
-                for (final c in app.connectionCandidates)
-                  RadioListTile<String?>(
+                for (final c in routes)
+                  RadioListTile<String>(
                     value: c.baseUrl,
-                    toggleable: true,
+                    enabled:
+                        c.baseUrl == inUse ||
+                        statuses[c.baseUrl] == RouteRowStatus.available,
                     title: Text(c.baseUrl),
-                    subtitle: availability(c),
+                    subtitle: statusText(c.baseUrl, statuses[c.baseUrl]!),
                     dense: true,
                   ),
                 const Divider(height: 1),
@@ -427,26 +418,6 @@ class _RouteSwitcherState extends State<_RouteSwitcher> {
                   subtitle: Text(strings.t('settings.editConnectionBody')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: widget.onEdit,
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                  child: Row(
-                    children: [
-                      Icon(statusIcon, size: 18, color: statusColor),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          statusText,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: state == RouteConnectionState.connected
-                                ? scheme.onSurface
-                                : statusColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
