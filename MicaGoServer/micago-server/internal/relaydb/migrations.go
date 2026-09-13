@@ -4,6 +4,16 @@ import "fmt"
 
 func (db *DB) Migrate() error {
 	statements := []string{
+		`CREATE TABLE IF NOT EXISTS chat_preferences_state (
+    id INTEGER PRIMARY KEY CHECK(id=1), server_id TEXT NOT NULL, revision INTEGER NOT NULL
+  );`,
+		`INSERT OR IGNORE INTO chat_preferences_state VALUES(1,lower(hex(randomblob(16))),0);`,
+		`CREATE TABLE IF NOT EXISTS chat_preferences (
+    chat_guid TEXT PRIMARY KEY, hidden INTEGER NOT NULL, revision INTEGER NOT NULL
+  );`,
+		`CREATE TABLE IF NOT EXISTS chat_preference_mutations (
+    mutation_id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, response TEXT NOT NULL
+  );`,
 		`CREATE TABLE IF NOT EXISTS chats (
 			guid TEXT PRIMARY KEY,
 			chat_identifier TEXT,

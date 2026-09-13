@@ -7,6 +7,8 @@ import '../../features/chats/message_render.dart'
     show messagePreviewText, reactionTargetGuid;
 import '../../features/chats/models/chat_summary.dart';
 import '../../features/chats/models/message_model.dart';
+import '../../features/chats/store/message_collection.dart'
+    show matchingPendingTempId;
 
 class LocalCacheStore {
   Database? _db;
@@ -31,6 +33,14 @@ class LocalCacheStore {
       onCreate: (db, _) => _createSchema(db),
       onUpgrade: (db, _, _) => _rebuildSchema(db),
       onDowngrade: (db, _, _) => _rebuildSchema(db),
+      onOpen: (db) async {
+        await db.execute(
+          'CREATE TABLE IF NOT EXISTS send_confirmations (chat_guid TEXT NOT NULL, temp_id TEXT NOT NULL, server_guid TEXT NOT NULL, PRIMARY KEY(chat_guid, temp_id), UNIQUE(chat_guid, server_guid))',
+        );
+        await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_messages_pending ON messages(chat_guid,temp_id) WHERE guid IS NULL OR guid=''",
+        );
+      },
     );
   }
 
@@ -102,8 +112,13 @@ CREATE TABLE metadata (
   Future<void> clearAll() async {
     final db = await _ready();
     await db.delete('messages');
+    await db.delete('send_confirmations');
     await db.delete('chats');
-    await db.delete('metadata');
+    await db.delete(
+      'metadata',
+      where:
+          "key NOT LIKE 'chat_preferences.%' AND key != 'chat_visibility.v1'",
+    );
   }
 
   Future<List<ChatSummary>> listChats({
@@ -117,10 +132,11 @@ CREATE TABLE metadata (
       orderBy:
           'pinned DESC, COALESCE(latest_renderable_at, 0) DESC, updated_at DESC',
     );
+    final hidden = await effectiveHiddenChatGuids();
     return rows
         .map(_chatFromRow)
         .where((chat) => includeDebug || chat.hasRenderableMessages)
-        .where((chat) => includeHidden || !_isHiddenRow(rows, chat.guid))
+        .where((chat) => includeHidden || !hidden.contains(chat.guid))
         .toList(growable: false);
   }
 
@@ -188,14 +204,28 @@ ON CONFLICT(guid) DO UPDATE SET
     await batch.commit(noResult: true);
   }
 
-  Future<void> setChatHidden(String guid, bool hidden) async {
+  Future<Set<String>> legacyHiddenChatGuids() async {
     final db = await _ready();
-    await db.update(
-      'chats',
-      {'hidden': hidden ? 1 : 0},
-      where: 'guid = ?',
-      whereArgs: [guid],
-    );
+    final rows = await db.query('chats', columns: ['guid'], where: 'hidden=1');
+    return rows.map((row) => row['guid'] as String).toSet();
+  }
+
+  Future<Set<String>> effectiveHiddenChatGuids() async {
+    final raw = await readMetadata('chat_visibility.v1');
+    return raw == null
+        ? legacyHiddenChatGuids()
+        : (jsonDecode(raw) as List).cast<String>().toSet();
+  }
+
+  Future<void> applyChatVisibility(Set<String> hidden) async {
+    await writeMetadata('chat_visibility.v1', jsonEncode(hidden.toList()));
+    final db = await _ready();
+    final batch = db.batch();
+    batch.update('chats', {'hidden': 0});
+    for (final guid in hidden) {
+      batch.update('chats', {'hidden': 1}, where: 'guid=?', whereArgs: [guid]);
+    }
+    await batch.commit(noResult: true);
   }
 
   /// Forces a noise-only chat to stay visible (overrides the renderable filter).
@@ -222,41 +252,20 @@ ON CONFLICT(guid) DO UPDATE SET
     );
   }
 
-  /// Number of user-hidden chats (excludes always-visible overrides).
-  Future<int> hiddenChatCount() async {
-    final db = await _ready();
-    final r = await db.rawQuery(
-      'SELECT COUNT(*) AS n FROM chats WHERE hidden = 1 AND always_visible = 0',
-    );
-    return (r.first['n'] as int?) ?? 0;
-  }
+  Future<int> hiddenChatCount() async =>
+      (await effectiveHiddenChatGuids()).length;
 
   Future<List<ChatSummary>> hiddenChats() async {
+    final hidden = await effectiveHiddenChatGuids();
     final db = await _ready();
     final rows = await db.query(
       'chats',
-      where: 'hidden = 1 AND always_visible = 0',
-      orderBy:
-          'COALESCE(latest_renderable_at, 0) DESC, updated_at DESC, guid ASC',
+      orderBy: 'COALESCE(latest_renderable_at,0) DESC',
     );
-    return rows.map(_chatFromRow).toList(growable: false);
-  }
-
-  Future<int> releaseHiddenChats(Iterable<String> guids) async {
-    final ids = guids.where((g) => g.trim().isNotEmpty).toSet();
-    if (ids.isEmpty) return 0;
-    final db = await _ready();
-    final batch = db.batch();
-    for (final guid in ids) {
-      batch.update(
-        'chats',
-        {'hidden': 0},
-        where: 'guid = ?',
-        whereArgs: [guid],
-      );
-    }
-    final results = await batch.commit();
-    return results.whereType<int>().fold<int>(0, (sum, value) => sum + value);
+    final known = {
+      for (final row in rows) row['guid'] as String: _chatFromRow(row),
+    };
+    return [for (final guid in hidden) known[guid] ?? ChatSummary(guid: guid)];
   }
 
   /// Hides a single message on the client only (a tombstone; the server copy is
@@ -394,14 +403,14 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
     Iterable<MessageModel> messages,
   ) async {
     final db = await _ready();
-    final batch = db.batch();
-    batch.delete(
-      'messages',
-      where: "chat_guid = ? AND (temp_id IS NULL OR temp_id = '')",
-      whereArgs: [chatGuid],
-    );
-    _batchUpsertMessages(batch, chatGuid, messages);
-    await batch.commit(noResult: true);
+    await db.transaction((tx) async {
+      await tx.delete(
+        'messages',
+        where: "chat_guid=? AND guid IS NOT NULL AND guid!=''",
+        whereArgs: [chatGuid],
+      );
+      await _mergeConfirmedMessages(tx, chatGuid, messages);
+    });
   }
 
   /// Adds or updates a fetched page without dropping older cached history.
@@ -412,16 +421,74 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
     Iterable<MessageModel> messages,
   ) async {
     final db = await _ready();
-    final batch = db.batch();
-    _batchUpsertMessages(batch, chatGuid, messages);
-    await batch.commit(noResult: true);
+    await db.transaction(
+      (tx) => _mergeConfirmedMessages(tx, chatGuid, messages),
+    );
   }
 
   Future<void> upsertMessage(String chatGuid, MessageModel message) async {
-    final db = await _ready();
-    final batch = db.batch();
-    _batchUpsertMessages(batch, chatGuid, [message]);
-    await batch.commit(noResult: true);
+    await mergeServerPage(chatGuid, [message]);
+  }
+
+  Future<void> _mergeConfirmedMessages(
+    Transaction tx,
+    String chatGuid,
+    Iterable<MessageModel> messages,
+  ) async {
+    final pending = (await tx.query(
+      'messages',
+      where:
+          "chat_guid=? AND (guid IS NULL OR guid='') AND temp_id IS NOT NULL",
+      whereArgs: [chatGuid],
+    )).map(_messageFromRow).toList();
+    for (final message in messages) {
+      if (message.isDebugOnly) continue;
+      var row = message;
+      if (message.guid.isNotEmpty) {
+        final claims = await tx.query(
+          'send_confirmations',
+          where: 'chat_guid=? AND server_guid=?',
+          whereArgs: [chatGuid, message.guid],
+          limit: 1,
+        );
+        final tempId = claims.isNotEmpty
+            ? claims.single['temp_id'] as String
+            : message.tempId ??
+                  matchingPendingTempId(
+                    pending,
+                    message,
+                    allowAttachmentFallback: false,
+                  );
+        if (tempId != null) {
+          await tx.insert('send_confirmations', {
+            'chat_guid': chatGuid,
+            'temp_id': tempId,
+            'server_guid': message.guid,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          await tx.delete(
+            'messages',
+            where: "chat_guid=? AND temp_id=? AND (guid IS NULL OR guid='')",
+            whereArgs: [chatGuid, tempId],
+          );
+          pending.removeWhere((p) => p.tempId == tempId);
+          row = message.copyWith(
+            tempId: tempId,
+            localState: LocalSendState.confirmed,
+          );
+        }
+      } else if (message.tempId != null) {
+        final claims = await tx.query(
+          'send_confirmations',
+          where: 'chat_guid=? AND temp_id=?',
+          whereArgs: [chatGuid, message.tempId],
+          limit: 1,
+        );
+        if (claims.isNotEmpty) continue;
+      }
+      final batch = tx.batch();
+      _batchUpsertMessages(batch, chatGuid, [row]);
+      await batch.commit(noResult: true);
+    }
   }
 
   /// Advances a chat's latest-message state from an incoming/outgoing message.
@@ -530,12 +597,17 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
     final db = await _ready();
     final rows = await db.query(
       'messages',
-      where: 'temp_id = ?',
+      where: "temp_id = ? AND (guid IS NULL OR guid='')",
       whereArgs: [tempId],
       limit: 1,
     );
     if (rows.isEmpty) return;
-    final msg = _messageFromRow(rows.first).copyWith(localState: state);
+    final current = _messageFromRow(rows.first);
+    if (current.localState == LocalSendState.sentUnconfirmed &&
+        state != LocalSendState.confirmed) {
+      return;
+    }
+    final msg = current.copyWith(localState: state);
     await db.update(
       'messages',
       {
@@ -543,14 +615,18 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
         'local_state': state.name,
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       },
-      where: 'temp_id = ?',
+      where: "temp_id = ? AND (guid IS NULL OR guid='')",
       whereArgs: [tempId],
     );
   }
 
   Future<void> deletePending(String tempId) async {
     final db = await _ready();
-    await db.delete('messages', where: 'temp_id = ?', whereArgs: [tempId]);
+    await db.delete(
+      'messages',
+      where: "temp_id = ? AND (guid IS NULL OR guid='')",
+      whereArgs: [tempId],
+    );
   }
 
   Future<void> confirmPending(
@@ -558,11 +634,9 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
     String tempId,
     MessageModel server,
   ) async {
-    final db = await _ready();
-    final batch = db.batch();
-    batch.delete('messages', where: 'temp_id = ?', whereArgs: [tempId]);
-    _batchUpsertMessages(batch, chatGuid, [server]);
-    await batch.commit(noResult: true);
+    await mergeServerPage(chatGuid, [
+      server.copyWith(tempId: tempId, localState: LocalSendState.confirmed),
+    ]);
   }
 
   Future<void> applyUnsend(
@@ -664,20 +738,18 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
     await db.delete('metadata', where: 'key = ?', whereArgs: [key]);
   }
 
-  /// Per-chat local UI flags (pinned / hidden / always-visible) for chats that
-  /// have any set, keyed by guid — used by settings backup (C54).
+  /// Local chat flags for settings backup.
   Future<Map<String, Map<String, int>>> exportChatFlags() async {
     final db = await _ready();
     final rows = await db.query(
       'chats',
-      columns: const ['guid', 'pinned', 'hidden', 'always_visible'],
-      where: 'pinned = 1 OR hidden = 1 OR always_visible = 1',
+      columns: const ['guid', 'pinned', 'always_visible'],
+      where: 'pinned = 1 OR always_visible = 1',
     );
     return {
       for (final r in rows)
         (r['guid'] as String): {
           'pinned': (r['pinned'] as int?) ?? 0,
-          'hidden': (r['hidden'] as int?) ?? 0,
           'always_visible': (r['always_visible'] as int?) ?? 0,
         },
     };
@@ -718,7 +790,6 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
         'chats',
         {
           'pinned': (flags['pinned'] as int?) ?? 0,
-          'hidden': (flags['hidden'] as int?) ?? 0,
           'always_visible': (flags['always_visible'] as int?) ?? 0,
         },
         where: 'guid = ?',
@@ -847,17 +918,6 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
         'hasRenderableMessages': true,
     };
     return ChatSummary.fromJson(merged);
-  }
-
-  bool _isHiddenRow(List<Map<String, Object?>> rows, String guid) {
-    final row = rows.cast<Map<String, Object?>?>().firstWhere(
-      (r) => r?['guid'] == guid,
-      orElse: () => null,
-    );
-    if (row == null) return false;
-    final alwaysVisible = (row['always_visible'] as int? ?? 0) != 0;
-    if (alwaysVisible) return false;
-    return (row['hidden'] as int? ?? 0) != 0;
   }
 
   MessageModel _messageFromRow(Map<String, Object?> row) {

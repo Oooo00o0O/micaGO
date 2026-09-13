@@ -21,6 +21,14 @@ public sealed class LocalizationService
     {
         var chinese = values["settings"] != "Settings";
         var traditional = values["settings"] == "設定";
+        values["prefsDescription"] = chinese ? (traditional ? "隱藏狀態會同步至所有裝置，訊息同步規則保持不變。" : "隐藏状态会同步至所有设备，消息同步规则保持不变。") : "Hidden chats sync across devices. Message sync rules stay unchanged.";
+        values["prefsOffline"] = chinese ? (traditional ? "尚未同步，連線後重試。" : "尚未同步，连接后重试。") : "Not synced yet. Retry when connected.";
+        values["prefsConflict"] = chinese ? (traditional ? "其他裝置已修改隱藏狀態，請選擇要保留的設定。" : "其他设备已修改隐藏状态，请选择要保留的设置。") : "Another device changed these preferences. Choose which changes to keep.";
+        values["prefsConnect"] = chinese ? (traditional ? "請先連線至伺服器。" : "请先连接至服务器。") : "Connect to the server first.";
+        values["prefsImport"] = chinese ? (traditional ? "匯入本機隱藏記錄（{0}）" : "导入本机隐藏记录（{0}）") : "Import local hidden chats ({0})";
+        values["prefsRetry"] = chinese ? (traditional ? "重試同步" : "重试同步") : "Retry sync";
+        values["prefsServer"] = chinese ? (traditional ? "保留伺服器設定" : "保留服务器设置") : "Keep server settings";
+        values["prefsMine"] = chinese ? (traditional ? "套用我的修改" : "应用我的修改") : "Apply my changes";
         values["connSubtitle"] = !chinese ? "Connect this Windows PC to your micaGO server" : traditional ? "將這台 Windows 電腦連線到你的 micaGO 伺服器" : "将这台 Windows 电脑连接到你的 micaGO 服务器";
         values["connPairingJson"] = traditional ? "配對 JSON" : chinese ? "配对 JSON" : "Pairing JSON";
         values["connPlaceholder"] = traditional ? "貼上 micaGO Companion 中的配對 JSON" : chinese ? "粘贴 micaGO Companion 中的配对 JSON" : "Paste the pairing JSON from micaGO Companion";

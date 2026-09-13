@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'chat_preference_status.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -913,8 +914,7 @@ Color _settingsAccent1_100(ColorScheme scheme) => Color.alphaBlend(
   scheme.surfaceContainerLowest,
 );
 
-/// Entry points for client-hidden messages and contacts. The actual restore
-/// actions live in native-feeling list subpages so users can review items first.
+/// Hidden messages and synced chat visibility.
 class _HiddenItemsCard extends StatefulWidget {
   final AppController app;
   const _HiddenItemsCard({required this.app});
@@ -931,9 +931,21 @@ class _HiddenItemsCardState extends State<_HiddenItemsCard> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    widget.app.chatPreferences.addListener(_refreshCounts);
+  }
+
+  @override
+  void dispose() {
+    widget.app.chatPreferences.removeListener(_refreshCounts);
+    super.dispose();
   }
 
   Future<void> _refresh() async {
+    await widget.app.chatPreferences.sync();
+    await _refreshCounts();
+  }
+
+  Future<void> _refreshCounts() async {
     final m = await widget.app.hiddenMessageCount();
     final c = await widget.app.hiddenChatCount();
     if (!mounted) return;
@@ -990,6 +1002,7 @@ class _HiddenItemsCardState extends State<_HiddenItemsCard> {
             trailing: const Icon(Icons.chevron_right),
             onTap: _openContacts,
           ),
+          ChatPreferenceStatus(preferences: widget.app.chatPreferences),
         ],
       ),
     );
@@ -1056,6 +1069,8 @@ class HiddenContactsPage extends StatelessWidget {
       emptyIcon: Icons.contacts_outlined,
       emptyKey: 'settings.noHiddenContacts',
       restoredKey: 'settings.releasedContacts',
+      changes: app.chatPreferences,
+      header: ChatPreferenceStatus(preferences: app.chatPreferences),
       load: app.hiddenChats,
       restore: app.releaseHiddenChats,
       rowOf: (context, chat) => _HiddenRow(
@@ -1068,11 +1083,9 @@ class HiddenContactsPage extends StatelessWidget {
   }
 }
 
-/// C61: shared settings-styled page for hidden messages / hidden contacts.
-/// Matches the Settings look (section header + Card of tiles) instead of the
-/// old bare checkbox list. A "Select" button in the top-right toggles
-/// multi-select; restoring happens from a bottom action row.
 class _HiddenItemsPage<T> extends StatefulWidget {
+  final Listenable? changes;
+  final Widget? header;
   final String title;
   final String countKey;
   final IconData emptyIcon;
@@ -1083,6 +1096,9 @@ class _HiddenItemsPage<T> extends StatefulWidget {
   final _HiddenRow Function(BuildContext, T) rowOf;
 
   const _HiddenItemsPage({
+    super.key,
+    this.changes,
+    this.header,
     required this.title,
     required this.countKey,
     required this.emptyIcon,
@@ -1108,6 +1124,13 @@ class _HiddenItemsPageState<T> extends State<_HiddenItemsPage<T>> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    widget.changes?.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    widget.changes?.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -1125,13 +1148,23 @@ class _HiddenItemsPageState<T> extends State<_HiddenItemsPage<T>> {
     final ids = guids.where((g) => g.isNotEmpty).toSet();
     if (ids.isEmpty || _busy) return;
     setState(() => _busy = true);
-    final n = await widget.restore(ids);
-    if (!mounted) return;
-    _selected.clear();
-    await _load();
-    if (!mounted) return;
-    setState(() => _busy = false);
-    _toastRestore(context, n, widget.restoredKey);
+    try {
+      final n = await widget.restore(ids);
+      if (!mounted) return;
+      _selected.clear();
+      await _load();
+      if (mounted) _toastRestore(context, n, widget.restoredKey);
+    } catch (_) {
+      if (mounted) {
+        TopBanner.show(
+          context,
+          MicaLocalizations.of(context).t('prefs.connect'),
+          kind: TopBannerKind.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _toggle(String guid) {
@@ -1182,19 +1215,26 @@ class _HiddenItemsPageState<T> extends State<_HiddenItemsPage<T>> {
               onPressed: () => setState(() => _selectMode = true),
             ),
       ],
-      child: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-          ? _HiddenEmptyState(
-              icon: widget.emptyIcon,
-              label: strings.t(widget.emptyKey),
-            )
-          : Column(
-              children: [
-                Expanded(child: _list(strings)),
-                if (_selectMode) _restoreBar(strings),
-              ],
-            ),
+      child: Column(
+        children: [
+          if (widget.header != null) widget.header!,
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _items.isEmpty
+                ? _HiddenEmptyState(
+                    icon: widget.emptyIcon,
+                    label: strings.t(widget.emptyKey),
+                  )
+                : Column(
+                    children: [
+                      Expanded(child: _list(strings)),
+                      if (_selectMode) _restoreBar(strings),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

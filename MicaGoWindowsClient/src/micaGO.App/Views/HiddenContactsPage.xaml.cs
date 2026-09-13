@@ -17,8 +17,26 @@ public sealed partial class HiddenContactsPage : Page
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        base.OnNavigatedTo(e);_context=e.Parameter as ShellNavigationContext;ApplyText();Reload();
+        base.OnNavigatedTo(e);_context=e.Parameter as ShellNavigationContext;
+        AppServices.Current.ChatPreferences.Changed+=PreferencesChanged;
+        ApplyText();Reload();
     }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e) {
+        AppServices.Current.ChatPreferences.Changed-=PreferencesChanged;
+        base.OnNavigatedFrom(e);
+    }
+    private void PreferencesChanged(object? sender,EventArgs args)=>DispatcherQueue.TryEnqueue(Reload);
+    private async Task RunPreferenceAsync(Func<Task> action) {
+        if(_busy)return; _busy=true;
+        try {await action();}
+        catch {RestoreInfoBar.Message=AppServices.Current.Localization["prefsConnect"];RestoreInfoBar.Severity=InfoBarSeverity.Error;RestoreInfoBar.IsOpen=true;}
+        finally {_busy=false;Reload();}
+    }
+    private async void ImportPreferences_Click(object sender,RoutedEventArgs e)=>await RunPreferenceAsync(()=>AppServices.Current.ChatPreferences.ImportLegacyAsync());
+    private async void RetryPreferences_Click(object sender,RoutedEventArgs e)=>await RunPreferenceAsync(()=>AppServices.Current.ChatPreferences.SyncAsync());
+    private async void ServerPreferences_Click(object sender,RoutedEventArgs e)=>await RunPreferenceAsync(()=>AppServices.Current.ChatPreferences.ResolveConflictsAsync(false));
+    private async void MinePreferences_Click(object sender,RoutedEventArgs e)=>await RunPreferenceAsync(()=>AppServices.Current.ChatPreferences.ResolveConflictsAsync(true));
 
     private void ApplyText()
     {
@@ -28,6 +46,13 @@ public sealed partial class HiddenContactsPage : Page
 
     private void Reload()
     {
+        var preferences=AppServices.Current.ChatPreferences;var l=AppServices.Current.Localization;
+        PreferenceStatusText.Text=l[preferences.ErrorKey??"prefsDescription"];
+        ImportPreferencesButton.Content=string.Format(l["prefsImport"],preferences.LegacyCount);
+        ImportPreferencesButton.Visibility=preferences.LegacyCount>0?Visibility.Visible:Visibility.Collapsed;
+        RetryPreferencesButton.Content=l["prefsRetry"];RetryPreferencesButton.Visibility=preferences.Pending||preferences.ErrorKey is not null?Visibility.Visible:Visibility.Collapsed;
+        ServerPreferencesButton.Content=l["prefsServer"];MinePreferencesButton.Content=l["prefsMine"];
+        ServerPreferencesButton.Visibility=MinePreferencesButton.Visibility=preferences.HasConflicts?Visibility.Visible:Visibility.Collapsed;
         var rows=_context?.Host.HiddenChats??[];HiddenContactsList.ItemsSource=rows;
         CountText.Text=string.Format(AppServices.Current.Localization["hiddenContactsCount"],rows.Count);
         ListPanel.Visibility=rows.Count>0?Visibility.Visible:Visibility.Collapsed;EmptyState.Visibility=rows.Count==0?Visibility.Visible:Visibility.Collapsed;
@@ -81,8 +106,14 @@ public sealed partial class HiddenContactsPage : Page
     private async Task RestoreAsync(IReadOnlyList<string> ids)
     {
         if(_busy||ids.Count==0||_context is null)return;_busy=true;UpdateSelectionAction();
-        var restored=await _context.Host.RestoreHiddenChatsAsync(ids);_busy=false;ExitSelectMode();Reload();
-        RestoreInfoBar.Message=string.Format(AppServices.Current.Localization["releasedContacts"],restored);RestoreInfoBar.IsOpen=true;
+        try {
+            var restored=await _context.Host.RestoreHiddenChatsAsync(ids);ExitSelectMode();
+            RestoreInfoBar.Severity=InfoBarSeverity.Success;
+            RestoreInfoBar.Message=string.Format(AppServices.Current.Localization["releasedContacts"],restored);RestoreInfoBar.IsOpen=true;
+        } catch {
+            RestoreInfoBar.Severity=InfoBarSeverity.Error;
+            RestoreInfoBar.Message=AppServices.Current.Localization["prefsConnect"];RestoreInfoBar.IsOpen=true;
+        } finally {_busy=false;Reload();UpdateSelectionAction();}
     }
     private void SetRestoreButtonsVisibility(Visibility visibility)
     {

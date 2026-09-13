@@ -1,6 +1,6 @@
 # Release Packaging
 
-Current release version: `0.62.0`.
+Current release version: `0.71.0`.
 
 ## Mac Companion DMG
 
@@ -20,7 +20,7 @@ Local unsigned DMG:
 
 ```sh
 cd MicaGoServer/micago-mac-companion
-VERSION=0.62.0 scripts/package-dmg.sh
+VERSION=0.71.0 scripts/package-dmg.sh
 ```
 
 Signed and notarized DMG:
@@ -32,7 +32,7 @@ NOTARIZE=1 \
 APPLE_ID="you@example.com" \
 APPLE_TEAM_ID="TEAMID" \
 APPLE_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
-VERSION=0.62.0 \
+VERSION=0.71.0 \
 scripts/package-dmg.sh
 ```
 
@@ -42,7 +42,7 @@ Companion app, an `Applications` shortcut, and a Finder background image.
 The output is:
 
 ```text
-MicaGoServer/micago-mac-companion/build/release/micaGO-0.62.0-mac.dmg
+MicaGoServer/micago-mac-companion/build/release/micaGO-0.71.0-mac.dmg
 ```
 
 ## Flutter Android
@@ -52,7 +52,7 @@ Release APK:
 ```sh
 cd MicaGoFlutterClient
 flutter pub get
-flutter build apk --release --build-name 0.62.0 --build-number 62
+flutter build apk --release --build-name 0.71.0 --build-number 71
 ```
 
 Output:
@@ -65,7 +65,7 @@ Release App Bundle for Play-style distribution:
 
 ```sh
 cd MicaGoFlutterClient
-flutter build appbundle --release --build-name 0.62.0 --build-number 62
+flutter build appbundle --release --build-name 0.71.0 --build-number 71
 ```
 
 Output:
@@ -85,8 +85,8 @@ The workflow lives at:
 Run it manually from GitHub Actions, or push a tag:
 
 ```sh
-git tag v0.62.0
-git push origin v0.62.0
+git tag v0.71.0
+git push origin v0.71.0
 ```
 
 The workflow builds:
@@ -95,7 +95,7 @@ The workflow builds:
 - Flutter Android release APK.
 - A GitHub Release when triggered by a tag.
 
-## Release Notes Template
+## Historical Release Notes Example (0.62.0)
 
 ```md
 ## micaGO 0.62.0 Beta

@@ -266,13 +266,32 @@ void main() {
       expect(c.ordered.map((m) => m.guid).toList(), ['old', 'live']);
     });
 
-    test('mergeServerPage drops rows deleted server-side', () {
+    test('mergeServerPage preserves older loaded history', () {
       final c = MessageCollection();
       c.upsertServer(_server(guid: 'gone', dateCreated: 1000));
       c.upsertServer(_server(guid: 'kept', dateCreated: 2000));
-      // A page covering the same window that no longer lists 'gone'.
       c.mergeServerPage([_server(guid: 'kept', dateCreated: 2000)]);
-      expect(c.ordered.map((m) => m.guid).toList(), ['kept']);
+      expect(c.ordered.map((m) => m.guid).toList(), ['gone', 'kept']);
+    });
+
+    test('stale page cannot overwrite a realtime edit', () {
+      final c = MessageCollection();
+      final old = _server(guid: 'a', text: 'before', dateCreated: 1000);
+      c.upsertServer(old);
+      final baseline = c.snapshot();
+      c.upsertServer(_server(guid: 'a', text: 'after', dateCreated: 1000));
+      c.mergeServerPage([old], baseline: baseline);
+      expect(c.ordered.single.text, 'after');
+    });
+
+    test('explicit removal survives an in-flight page', () {
+      final c = MessageCollection();
+      final row = _server(guid: 'a', dateCreated: 1000);
+      c.upsertServer(row);
+      final baseline = c.snapshot();
+      c.removeServerMessages(['a']);
+      c.mergeServerPage([row], baseline: baseline);
+      expect(c.ordered, isEmpty);
     });
 
     test('an empty page never clears the thread', () {

@@ -15,6 +15,7 @@ public sealed class AppServices : IDisposable
             new ConnectionStore(secrets),
             new EndpointSelector());
         Cache = new LocalCacheStore();
+        ChatPreferences = new ChatPreferenceSync(Cache, () => Connection.Api);
         DevicePresence = new DevicePresenceService(Connection, Cache);
         Media = new MediaCache();
         Localization = new LocalizationService();
@@ -27,6 +28,7 @@ public sealed class AppServices : IDisposable
 
     public ConnectionManager Connection { get; }
     public LocalCacheStore Cache { get; }
+    public ChatPreferenceSync ChatPreferences { get; }
     public DevicePresenceService DevicePresence { get; }
     public MediaCache Media { get; }
     public LocalizationService Localization { get; }

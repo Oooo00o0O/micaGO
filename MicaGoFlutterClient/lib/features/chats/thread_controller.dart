@@ -11,9 +11,6 @@ import 'attachment_panel.dart' show StagedAttachment;
 import 'models/message_model.dart';
 import 'realtime_event_helpers.dart' as rt;
 import 'store/message_collection.dart';
-// Re-export the reconciliation predicate so existing callers/tests that import
-// it from thread_controller continue to work after the store extraction.
-export 'store/message_collection.dart' show shouldReconcileLocalWithServer;
 
 enum ThreadState { loading, loaded, empty, error }
 
@@ -45,11 +42,8 @@ class ThreadController extends ChangeNotifier {
 
   final MessageCollection _col = MessageCollection();
 
-  /// C78: pagination is tracked **per route**. The merged view used to page
-  /// only the primary route, so scrolling up never fetched older messages from
-  /// the other routes — the timeline showed one source with growing holes.
-  final Map<String, int> _routeOffsets = {};
-  final Set<String> _routesWithMore = {};
+  String? _historyCursor;
+  bool _historyLoaded = false;
   bool hasMore = true;
   bool loadingOlder = false;
 
@@ -128,11 +122,12 @@ class ThreadController extends ChangeNotifier {
       _notify();
       return;
     }
-    if (showSpinner) {
+    if (showSpinner && _col.isEmpty) {
+      final baseline = _col.snapshot();
       final cached = await _cachedThreadMessages();
       if (_disposed) return;
       if (cached.isNotEmpty) {
-        _col.mergeServerPage(cached);
+        _col.mergeServerPage(cached, baseline: baseline);
         state = ThreadState.loaded;
       } else {
         state = ThreadState.loading;
@@ -140,69 +135,41 @@ class ThreadController extends ChangeNotifier {
       error = null;
       _notify();
     }
+    final baseline = _col.snapshot();
     try {
-      // C78: every route in parallel — the merged view used to await them one
-      // after another, multiplying latency (and the window in which an
-      // arriving message could be clobbered) by the number of routes.
-      final routes = threadGuids.toList(growable: false);
-      final pages = await Future.wait(
-        routes.map(
-          (guid) async => (
-            guid: guid,
-            rows: await _fetchRoutePage(api, guid, offset: 0),
-          ),
-        ),
-      );
+      final page = await api.getMessageHistory(threadGuids, limit: _pageSize);
       if (_disposed) return;
-      final fetched = <MessageModel>[];
-      for (final page in pages) {
-        if (page.rows == null) continue; // route failed; keep the others
-        await app.cache.mergeServerPage(page.guid, page.rows!);
-        fetched.addAll(page.rows!);
-        _routeOffsets[page.guid] = page.rows!.length;
-        if (page.rows!.length >= _pageSize) {
-          _routesWithMore.add(page.guid);
-        } else {
-          _routesWithMore.remove(page.guid);
-        }
-      }
-      if (_disposed) return;
-      // Store everything (so unhide can restore it) but never display a
-      // client-hidden message.
+      await _cacheHistory(page.messages);
       final hidden = await app.cache.hiddenMessageGuids();
       if (_disposed) return;
+      _col.removeServerMessages(hidden);
       _col.mergeServerPage(
-        fetched.where((m) => !hidden.contains(m.guid)).toList(),
+        page.messages.where((m) => !hidden.contains(m.guid)),
+        baseline: baseline,
+        allowNewAttachmentFallback: true,
       );
+      if (!_historyLoaded) {
+        _historyCursor = page.nextCursor;
+        hasMore = page.hasMore;
+        _historyLoaded = true;
+      }
       _sweepAttachmentSendBookkeeping();
-      hasMore = _routesWithMore.isNotEmpty;
       state = _col.isEmpty ? ThreadState.empty : ThreadState.loaded;
       error = null;
     } on ApiException catch (e) {
-      final cached = await _cachedThreadMessages();
       if (_disposed) return;
-      if (cached.isNotEmpty) {
-        _col.mergeServerPage(cached);
-        state = ThreadState.loaded;
-        error = null;
-      } else {
-        state = ThreadState.error;
-        error = _humanize(e);
-      }
+      state = _col.isEmpty ? ThreadState.error : ThreadState.loaded;
+      error = _humanize(e);
     }
     _notify();
   }
 
-  /// One route's page, or null when that route failed (the rest still render).
-  Future<List<MessageModel>?> _fetchRoutePage(
-    ApiClient api,
-    String guid, {
-    required int offset,
-  }) async {
-    try {
-      return await api.getMessages(guid, limit: _pageSize, offset: offset);
-    } on ApiException {
-      return null;
+  Future<void> _cacheHistory(List<MessageModel> messages) async {
+    for (final route in threadGuids) {
+      await app.cache.mergeServerPage(
+        route,
+        messages.where((message) => message.chatGuid == route).toList(),
+      );
     }
   }
 
@@ -217,58 +184,43 @@ class ThreadController extends ChangeNotifier {
     for (final guid in ids) {
       await app.cache.setMessageHidden(guid, true);
     }
-    _col.mergeServerPage(await _cachedThreadMessages());
+    if (_disposed) return;
+    _col.removeServerMessages(ids);
+    state = _col.isEmpty ? ThreadState.empty : ThreadState.loaded;
     _notify();
   }
 
-  /// C78: pages **every** route that still has history, in parallel. Previously
-  /// only the primary route was paged, so a merged conversation could scroll
-  /// back through one participant's messages while the other route stayed stuck
-  /// at its newest page.
   Future<void> loadOlder() async {
-    if (loadingOlder || !hasMore) return;
+    if (_disposed || loadingOlder || !hasMore || !_historyLoaded) return;
     final api = app.api;
     if (api == null) return;
     loadingOlder = true;
     _notify();
+    final baseline = _col.snapshot();
     try {
-      final routes = threadGuids
-          .where(_routesWithMore.contains)
-          .toList(growable: false);
-      final pages = await Future.wait(
-        routes.map(
-          (guid) async => (
-            guid: guid,
-            rows: await _fetchRoutePage(
-              api,
-              guid,
-              offset: _routeOffsets[guid] ?? 0,
-            ),
-          ),
-        ),
+      final page = await api.getMessageHistory(
+        threadGuids,
+        limit: _pageSize,
+        before: _historyCursor,
       );
       if (_disposed) return;
-      final fetched = <MessageModel>[];
-      for (final page in pages) {
-        final rows = page.rows;
-        if (rows == null) continue;
-        for (final m in rows) {
-          await app.cache.upsertMessage(page.guid, m);
-        }
-        fetched.addAll(rows);
-        _routeOffsets[page.guid] = (_routeOffsets[page.guid] ?? 0) + rows.length;
-        if (rows.length < _pageSize) _routesWithMore.remove(page.guid);
-      }
-      if (_disposed) return;
+      await _cacheHistory(page.messages);
       final hidden = await app.cache.hiddenMessageGuids();
       if (_disposed) return;
-      _col.mergeOlder(fetched.where((m) => !hidden.contains(m.guid)).toList());
-      hasMore = _routesWithMore.isNotEmpty;
-    } on ApiException {
-      // Keep what we have; a transient failure shouldn't break the thread.
+      _col.removeServerMessages(hidden);
+      _col.mergeServerPage(
+        page.messages.where((m) => !hidden.contains(m.guid)),
+        baseline: baseline,
+      );
+      _historyCursor = page.nextCursor;
+      hasMore = page.hasMore;
+      error = null;
+    } on ApiException catch (e) {
+      if (!_disposed) error = _humanize(e);
+    } finally {
+      loadingOlder = false;
+      _notify();
     }
-    loadingOlder = false;
-    _notify();
   }
 
   Future<void> send(String text) async {
@@ -281,7 +233,7 @@ class ThreadController extends ChangeNotifier {
       tempId: tempId,
       text: trimmed,
       dateCreated: DateTime.now().millisecondsSinceEpoch,
-    );
+    ).copyWith(chatGuid: chatGuid);
     _col.addPending(optimistic);
     await app.cache.addPending(chatGuid, optimistic);
     state = ThreadState.loaded;
@@ -296,30 +248,23 @@ class ThreadController extends ChangeNotifier {
       _col.confirmPending(tempId, confirmed);
       await app.cache.confirmPending(chatGuid, tempId, confirmed);
     } on ApiException catch (e) {
-      // AppleScript succeeded but DB confirmation timed out → sentUnconfirmed,
-      // NOT failed; a later server row / update will upgrade it.
-      _col.setPendingState(
-        tempId,
-        e.code == 'send_confirmation_timeout'
-            ? LocalSendState.sentUnconfirmed
-            : LocalSendState.failed,
-      );
-      await app.cache.setPendingState(
-        tempId,
-        e.code == 'send_confirmation_timeout'
-            ? LocalSendState.sentUnconfirmed
-            : LocalSendState.failed,
-      );
+      _col.setPendingState(tempId, e.sendState);
+      await app.cache.setPendingState(tempId, e.sendState);
+      _scheduleReload();
     }
     _notify();
   }
 
   Future<void> retry(String tempId) async {
+    await load(showSpinner: false);
+    if (_disposed || _col.pendingByTempId(tempId) == null) return;
     // C63: failed attachment sends retry with their staged bytes.
     final staged = _pendingAttachmentSends[tempId];
     if (staged != null) {
+      if (attachmentSending) return;
       _col.removePending(tempId);
       _cleanupAttachmentSend(tempId);
+      await app.cache.deletePending(tempId);
       _notify();
       await sendAttachments([staged]);
       return;
@@ -327,6 +272,7 @@ class ThreadController extends ChangeNotifier {
     final removed = _col.removePending(tempId);
     final text = removed?.text;
     if (text == null) return;
+    await app.cache.deletePending(tempId);
     _notify();
     await send(text);
   }
@@ -397,18 +343,27 @@ class ThreadController extends ChangeNotifier {
       final optimistic = MessageModel.optimisticAttachment(
         tempId: tempId,
         filename: item.filename,
-        totalBytes: item.bytes.length,
+        totalBytes: item.size,
         dateCreated: baseMs + i,
-      );
+      ).copyWith(chatGuid: chatGuid);
       _pendingAttachmentSends[tempId] = item;
       _uploadProgress[tempId] = ValueNotifier<double>(0);
       // C66: *pin* the local bytes (non-evictable, synchronous) so the bubble
       // renders instantly — a pending guid must never fall into the
       // spinner/network path. Unpinned in _cleanupAttachmentSend.
-      MediaCache.instance.pinLocal(
+      MediaCache.instance.registerLocal(
         MessageModel.localAttachmentGuid(tempId),
-        item.bytes,
+        preview: item.thumbnail,
+        loadPreview: item.previewBytes,
+        loadOriginal: item.readBytes,
       );
+      final aspect = item.previewAspectRatio;
+      if (aspect != null) {
+        MediaCache.instance.rememberAspectRatio(
+          MessageModel.localAttachmentGuid(tempId),
+          aspect,
+        );
+      }
       _col.addPending(optimistic);
       queue.add((tempId: tempId, item: item, optimistic: optimistic));
     }
@@ -429,10 +384,15 @@ class ThreadController extends ChangeNotifier {
           chatGuid: chatGuid,
           tempGuid: tempId,
           bytes: item.bytes,
+          filePath: item.path,
           filename: item.filename,
           isAudioMessage: item.isAudioMessage,
           onSendProgress: (sent, total) {
-            if (total > 0) progress?.value = sent / total;
+            if (!_disposed &&
+                identical(_uploadProgress[tempId], progress) &&
+                total > 0) {
+              progress?.value = sent / total;
+            }
           },
         );
         anySent = true;
@@ -463,10 +423,13 @@ class ThreadController extends ChangeNotifier {
         _col.replacePending(tempId, updated);
         _notify();
       } on ApiException catch (e) {
-        // C70: keep sending the remaining files — the failed one keeps its
-        // failed bubble (tap to retry) and the batch continues.
-        attachmentError = e.friendly;
-        _col.setPendingState(tempId, LocalSendState.failed);
+        if (_col.pendingByTempId(tempId) != null) {
+          attachmentError = e.sendState == LocalSendState.failed
+              ? e.friendly
+              : null;
+          _col.setPendingState(tempId, e.sendState);
+        }
+        _scheduleReload();
         _notify();
       } catch (e) {
         attachmentError = '$e';
@@ -517,8 +480,19 @@ class ThreadController extends ChangeNotifier {
             msg is Map<String, dynamic> &&
             _col.pendingByTempId(tempId) != null) {
           final confirmed = MessageModel.fromJson(msg);
+          if (confirmed.chatGuid != null &&
+              !threadGuids.contains(confirmed.chatGuid)) {
+            break;
+          }
           _col.confirmPending(tempId, confirmed);
-          unawaited(app.cache.confirmPending(chatGuid, tempId, confirmed));
+          _sweepAttachmentSendBookkeeping();
+          unawaited(
+            app.cache.confirmPending(
+              confirmed.chatGuid ?? chatGuid,
+              tempId,
+              confirmed,
+            ),
+          );
           unawaited(app.markRealtimeEventApplied(e));
           _notify();
         }
@@ -662,12 +636,12 @@ class ThreadController extends ChangeNotifier {
       n.dispose();
     }
     _uploadProgress.clear();
+    for (final tempId in _pendingAttachmentSends.keys) {
+      MediaCache.instance.unpinLocal(MessageModel.localAttachmentGuid(tempId));
+    }
+    _pendingAttachmentSends.clear();
     super.dispose();
   }
 }
-
-MessageModel? messageFromWsEvent(WsEvent e) => rt.messageFromWsEvent(e);
-
-String? chatGuidFromWsEvent(WsEvent e) => rt.chatGuidFromWsEvent(e);
 
 int? _asInt(Object? v) => v is num ? v.toInt() : null;

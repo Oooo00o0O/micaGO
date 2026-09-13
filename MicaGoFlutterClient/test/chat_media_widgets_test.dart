@@ -229,13 +229,12 @@ void main() {
     release.complete();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 80));
-    // Loaded media fades over the still-present placeholder while the same
-    // frame eases to its final size. No bubble entrance/scale animation runs.
     expect(find.byType(Image), findsWidgets);
-    expect(find.byIcon(Icons.image_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.videocam_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
+    expect(find.byType(AnimatedSize), findsNothing);
 
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.image_outlined), findsNothing);
     expect(find.byIcon(Icons.videocam_outlined), findsNothing);
@@ -298,51 +297,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'a sticker falls back to raw bytes when preview conversion fails',
-    (tester) async {
-      final seen = <String>[];
-      final stickerApi = ApiClient(
-        baseUrl: 'http://localhost:0',
-        token: 't',
-        httpClient: MockClient((request) async {
-          seen.add(request.url.path);
-          if (request.url.path.endsWith('/preview')) {
-            return http.Response('preview unavailable', 501);
-          }
-          return http.Response.bytes(_png1x1, 200);
-        }),
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AttachmentView(
-              api: stickerApi,
-              attachment: const AttachmentModel(
-                guid: 's-preview',
-                downloadUrl: '/api/attachments/s-preview',
-                previewUrl: '/api/attachments/s-preview/preview',
-                filename: 'sticker.heic',
-                isSticker: true,
-                attachmentKind: 'sticker',
-                displayKind: 'sticker',
-                needsPreviewConversion: true,
-              ),
+  testWidgets('a failed sticker preview does not download the original', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    final stickerApi = ApiClient(
+      baseUrl: 'http://localhost:0',
+      token: 't',
+      httpClient: MockClient((request) async {
+        seen.add(request.url.path);
+        if (request.url.path.endsWith('/preview')) {
+          return http.Response('preview unavailable', 501);
+        }
+        return http.Response.bytes(_png1x1, 200);
+      }),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AttachmentView(
+            api: stickerApi,
+            attachment: const AttachmentModel(
+              guid: 's-preview',
+              downloadUrl: '/api/attachments/s-preview',
+              previewUrl: '/api/attachments/s-preview/preview',
+              filename: 'sticker.heic',
+              isSticker: true,
+              attachmentKind: 'sticker',
+              displayKind: 'sticker',
+              needsPreviewConversion: true,
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(seen, [
-        '/api/attachments/s-preview/preview',
-        '/api/attachments/s-preview',
-      ]);
-      expect(find.byType(Image), findsOneWidget);
-      expect(find.text('Sticker'), findsNothing);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    expect(seen, ['/api/attachments/s-preview/preview']);
+    expect(find.byType(Image), findsNothing);
+    expect(find.text('Sticker'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'an un-renderable sticker shows a clean Sticker placeholder, not a file card',

@@ -44,6 +44,18 @@ class _MicaLocalizationsDelegate
 
 const _strings = {
   'en': {
+    'chat.awaitingConfirmation': 'Waiting for confirmation',
+    'prefs.description':
+        'Hidden chats stay synced across devices. New messages remain hidden and do not notify.',
+    'prefs.offline':
+        'Visibility sync is unavailable. Pending changes will retry when connected.',
+    'prefs.conflict':
+        'Another device changed these chats. Choose which state to keep.',
+    'prefs.connect': 'Connect to this server once before syncing hidden chats.',
+    'prefs.import': 'Sync existing local hidden chats ({n})',
+    'prefs.server': 'Use server state',
+    'prefs.retryMine': 'Apply my changes',
+    'prefs.retry': 'Retry sync',
     'settings.appearance': 'Appearance',
     'nav.chats': 'Chats',
     'nav.settings': 'Settings',
@@ -174,8 +186,7 @@ const _strings = {
     'display.effectHints': 'Show effect hints',
     'display.effectHintsBody': 'e.g. "Sent with Slam"',
     'display.debugChats': 'Show debug-only chats',
-    'display.debugChatsBody':
-        'Reveal chats whose only content is system rows',
+    'display.debugChatsBody': 'Reveal chats whose only content is system rows',
     'display.deliveryLabels': 'Delivery & read labels',
     'display.deliveryOff': 'Off',
     'display.deliveryCompact': 'Compact (latest outgoing only)',
@@ -332,6 +343,15 @@ const _strings = {
     'chat.attachmentOpenFailed': 'Could not open attachment.',
   },
   'zhHans': {
+    'chat.awaitingConfirmation': '等待发送确认',
+    'prefs.description': '隐藏状态在设备间同步，消息继续接收。新消息保持隐藏且不通知。',
+    'prefs.offline': '隐藏状态暂时无法同步，待处理操作将在连接后重试。',
+    'prefs.conflict': '其他设备修改了这些聊天，请选择保留哪一份状态。',
+    'prefs.connect': '请先连接一次服务器，再同步隐藏聊天。',
+    'prefs.import': '同步本机已有隐藏聊天（{n}）',
+    'prefs.server': '使用服务器状态',
+    'prefs.retryMine': '应用我的修改',
+    'prefs.retry': '重试同步',
     'settings.appearance': '外观',
     'nav.chats': '聊天',
     'nav.settings': '设置',
@@ -408,7 +428,8 @@ const _strings = {
     'settings.editConnectionBody': '更改服务器地址或重新配对',
     'settings.unpair': '解除配对并清除数据',
     'settings.unpairTitle': '解除此设备的配对？',
-    'settings.unpairBody': '这会删除已保存的服务器地址、访问令牌，以及本机缓存的聊天记录。Mac 上的原始信息不受影响，你随时可以重新配对。',
+    'settings.unpairBody':
+        '这会删除已保存的服务器地址、访问令牌，以及本机缓存的聊天记录。Mac 上的原始信息不受影响，你随时可以重新配对。',
     'settings.unpairConfirm': '解除配对',
     'settings.cancel': '取消',
     'settings.route': '服务器线路',
@@ -604,6 +625,15 @@ const _strings = {
     'chat.attachmentOpenFailed': '附件打开失败。',
   },
   'zhHant': {
+    'chat.awaitingConfirmation': '等待傳送確認',
+    'prefs.description': '隱藏狀態會在裝置間同步，訊息繼續接收。新訊息保持隱藏且不通知。',
+    'prefs.offline': '隱藏狀態暫時無法同步，待處理操作將在連線後重試。',
+    'prefs.conflict': '其他裝置修改了這些聊天，請選擇保留哪一份狀態。',
+    'prefs.connect': '請先連線一次伺服器，再同步隱藏聊天。',
+    'prefs.import': '同步本機已有隱藏聊天（{n}）',
+    'prefs.server': '使用伺服器狀態',
+    'prefs.retryMine': '套用我的修改',
+    'prefs.retry': '重試同步',
     'settings.appearance': '外觀',
     'nav.chats': '聊天',
     'nav.settings': '設定',
@@ -680,7 +710,8 @@ const _strings = {
     'settings.editConnectionBody': '變更伺服器位址或重新配對',
     'settings.unpair': '解除配對並清除資料',
     'settings.unpairTitle': '解除此裝置的配對？',
-    'settings.unpairBody': '這會刪除已儲存的伺服器位址、存取權杖，以及本機快取的對話記錄。Mac 上的原始訊息不受影響，你隨時可以重新配對。',
+    'settings.unpairBody':
+        '這會刪除已儲存的伺服器位址、存取權杖，以及本機快取的對話記錄。Mac 上的原始訊息不受影響，你隨時可以重新配對。',
     'settings.unpairConfirm': '解除配對',
     'settings.cancel': '取消',
     'settings.route': '伺服器路線',

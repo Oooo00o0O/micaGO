@@ -90,6 +90,13 @@ class _ChatsPaneState extends State<ChatsPane> {
 
   @override
   Widget build(BuildContext context) {
+    final app = context.watch<AppController>();
+    if (_selected?.routes.any(
+          (route) => app.chatPreferences.isHidden(route.guid),
+        ) ==
+        true) {
+      _selected = null;
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final tablet = constraints.maxWidth >= _tabletBreakpoint;

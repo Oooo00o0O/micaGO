@@ -250,12 +250,12 @@ void main() {
         MessageDeliveryState.incoming,
       );
     });
-    test('sending while pending', () {
+    test('unknown send outcome waits for confirmation', () {
       expect(
         deliveryStateFor(
           _msg(isFromMe: true, tempId: 't', localState: LocalSendState.pending),
         ),
-        MessageDeliveryState.sending,
+        MessageDeliveryState.awaitingConfirmation,
       );
       expect(
         deliveryStateFor(

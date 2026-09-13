@@ -65,6 +65,7 @@ type ruleModes struct {
 // RuleSnapshot is an in-memory view of the rules + default policy, evaluated per
 // message during a sync tick.
 type RuleSnapshot struct {
+	hidden              map[string]bool
 	defaultSyncAllowAll bool
 	defaultPushEnabled  bool
 	chat                map[string]ruleModes
@@ -87,6 +88,9 @@ func (s RuleSnapshot) SyncAllowed(chatGUID string, handle *string) bool {
 // PushEnabled gates push on the sync decision, then applies chat > handle >
 // default precedence to the push decision. A non-synced message never pushes.
 func (s RuleSnapshot) PushEnabled(chatGUID string, handle *string) bool {
+	if s.hidden[chatGUID] {
+		return false
+	}
 	if !s.SyncAllowed(chatGUID, handle) {
 		return false
 	}
@@ -116,12 +120,30 @@ func (db *DB) LoadRuleSnapshot(ctx context.Context) (RuleSnapshot, error) {
 		return RuleSnapshot{}, err
 	}
 	snap := RuleSnapshot{
+		hidden:              map[string]bool{},
 		defaultSyncAllowAll: syncPolicy != PolicyBlockAll,
 		defaultPushEnabled:  pushPolicy != PolicyMuted,
 		chat:                map[string]ruleModes{},
 		handle:              map[string]ruleModes{},
 	}
 
+	hiddenRows, err := db.sqlDB.QueryContext(ctx, "SELECT chat_guid FROM chat_preferences WHERE hidden=1")
+	if err != nil {
+		return RuleSnapshot{}, err
+	}
+	for hiddenRows.Next() {
+		var guid string
+		if err := hiddenRows.Scan(&guid); err != nil {
+			hiddenRows.Close()
+			return RuleSnapshot{}, err
+		}
+		snap.hidden[guid] = true
+	}
+	if err := hiddenRows.Err(); err != nil {
+		hiddenRows.Close()
+		return RuleSnapshot{}, err
+	}
+	hiddenRows.Close()
 	rows, err := db.sqlDB.QueryContext(ctx, `SELECT target_kind, target_value, sync_mode, push_mode FROM sync_rules`)
 	if err != nil {
 		return RuleSnapshot{}, err

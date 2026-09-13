@@ -72,6 +72,21 @@ struct APIClient {
         return try JSONDecoder().decode(ServerStatus.self, from: data)
     }
 
+    func chatPreferences() async throws -> ChatPreferencesResponse {
+        let (data, response) = try await Self.session().data(for: request("api/chat-preferences"))
+        try Self.validate(response)
+        return try JSONDecoder().decode(ChatPreferencesResponse.self, from: data)
+    }
+
+    func patchChatPreferences(_ mutation: ChatPreferenceMutation) async throws -> ChatPreferencesResponse {
+        var req = request("api/chat-preferences", method: "PATCH")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(mutation)
+        let (data, response) = try await Self.session().data(for: req)
+        try Self.validate(response)
+        return try JSONDecoder().decode(ChatPreferencesResponse.self, from: data)
+    }
+
     func devices() async throws -> [DeviceInfo] {
         let (data, response) = try await Self.session().data(for: request("api/devices"))
         try Self.validate(response)

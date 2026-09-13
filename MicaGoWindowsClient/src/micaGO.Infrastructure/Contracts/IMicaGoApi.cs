@@ -5,6 +5,8 @@ namespace MicaGo.Infrastructure.Contracts;
 public interface IMicaGoApi : IDisposable
 {
     string BaseUrl { get; }
+    Task<ChatPreferences> GetChatPreferencesAsync(CancellationToken cancellationToken = default);
+    Task<ChatPreferences> PatchChatPreferencesAsync(ChatPreferenceMutation mutation, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ChatSummary>> GetChatsAsync(CancellationToken cancellationToken = default);
     Task<MessageHistoryPage> GetMessageHistoryAsync(IReadOnlyList<string> chatIds, int limit = 50, string? before = null, CancellationToken cancellationToken = default);
     Task<MessageDelta> GetMessagesDeltaAsync(long? since, int limit = 200, CancellationToken cancellationToken = default);
