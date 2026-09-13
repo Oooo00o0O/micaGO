@@ -47,7 +47,8 @@ public sealed partial class HiddenContactsPage : Page
     private void Reload()
     {
         var preferences=AppServices.Current.ChatPreferences;var l=AppServices.Current.Localization;
-        PreferenceStatusText.Text=l[preferences.ErrorKey??"prefsDescription"];
+        PreferenceStatusText.Text=preferences.ErrorKey is { } errorKey?l[errorKey]:string.Empty;PreferenceStatusText.Visibility=preferences.ErrorKey is null?Visibility.Collapsed:Visibility.Visible;
+        PreferencePanel.Visibility=preferences.ErrorKey is not null||preferences.LegacyCount>0||preferences.Pending||preferences.HasConflicts?Visibility.Visible:Visibility.Collapsed;
         ImportPreferencesButton.Content=string.Format(l["prefsImport"],preferences.LegacyCount);
         ImportPreferencesButton.Visibility=preferences.LegacyCount>0?Visibility.Visible:Visibility.Collapsed;
         RetryPreferencesButton.Content=l["prefsRetry"];RetryPreferencesButton.Visibility=preferences.Pending||preferences.ErrorKey is not null?Visibility.Visible:Visibility.Collapsed;

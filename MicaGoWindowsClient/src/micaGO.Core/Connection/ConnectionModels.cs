@@ -35,6 +35,8 @@ public sealed record ConnectionProfile(
     string ActiveWebSocketUrl,
     ConnectionMode Mode,
     string ConfigRevision,
-    IReadOnlyList<ConnectionEndpoint> Endpoints);
+    IReadOnlyList<ConnectionEndpoint> Endpoints,
+    // W-UI9: the route the user switched to; kept until it can't be reached.
+    string? SelectedBaseUrl = null);
 
 public sealed record SavedConnection(ConnectionProfile Profile, string Token);

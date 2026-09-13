@@ -5,7 +5,7 @@
     <Border x:Name="Card"
             MinWidth="210"
             MaxWidth="320"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            Background="{ThemeResource MicaGoChatCardBrush}"
             BorderBrush="{ThemeResource MicaGoSubtleStrokeBrush}"
             BorderThickness="1"
             CornerRadius="12"

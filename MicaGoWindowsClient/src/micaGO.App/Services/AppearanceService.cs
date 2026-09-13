@@ -18,6 +18,23 @@ public sealed class AppearanceService(LocalCacheStore cache)
     public Color BubbleColor { get; private set; } = Color.FromArgb(0xFF, 0x0A, 0x84, 0xFF);
     public bool TwemojiFlagsEnabled { get; private set; }
 
+    /// <summary>W-UI8: bubble colour presets — the Flutter client's theme colours.</summary>
+    public static IReadOnlyList<(string Key, Color Color)> BubbleColorPresets { get; } =
+    [
+        ("micago", Color.FromArgb(0xFF, 0x00, 0x7A, 0xFF)),
+        ("bicao", Color.FromArgb(0xFF, 0x2E, 0x7D, 0x32)),
+        ("wisteria", Color.FromArgb(0xFF, 0x7E, 0x6B, 0xAE)),
+        ("citrus", Color.FromArgb(0xFF, 0xE6, 0x51, 0x00)),
+        ("inkWash", Color.FromArgb(0xFF, 0x2E, 0x2E, 0x2E)),
+        ("paleGold", Color.FromArgb(0xFF, 0xB8, 0x9B, 0x5E)),
+        ("wineRed", Color.FromArgb(0xFF, 0x8B, 0x1E, 0x3F)),
+        ("blueGreen", Color.FromArgb(0xFF, 0x1F, 0x6F, 0x6A)),
+        ("indigo", Color.FromArgb(0xFF, 0x2F, 0x3A, 0x73)),
+        ("peachBlossom", Color.FromArgb(0xFF, 0xE8, 0x89, 0xA8)),
+        ("witheredGrass", Color.FromArgb(0xFF, 0x9C, 0x8A, 0x4F)),
+        ("amber", Color.FromArgb(0xFF, 0xB8, 0x79, 0x2B)),
+    ];
+
     public async Task InitializeAsync()
     {
         if (_initialized) return;

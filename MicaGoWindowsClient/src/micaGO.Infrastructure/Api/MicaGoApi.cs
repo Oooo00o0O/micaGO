@@ -13,25 +13,57 @@ namespace MicaGo.Infrastructure.Api;
 
 public sealed class MicaGoApi : IMicaGoApi
 {
-    private readonly HttpClient _http;
     private readonly string _token;
-    private readonly Uri _webSocketUri;
+    private readonly object _routeGate = new();
+    private readonly List<HttpClient> _retiredClients = [];
+    private HttpClient _http;
+    private Uri _webSocketUri;
+    private CancellationTokenSource _routeChanged = new();
 
     public MicaGoApi(string baseUrl, string webSocketUrl, string token)
     {
         BaseUrl = baseUrl.TrimEnd('/');
         _token = token;
         _webSocketUri = new Uri(webSocketUrl);
-        _http = new HttpClient
-        {
-            BaseAddress = new Uri($"{BaseUrl}/"),
-            Timeout = TimeSpan.FromSeconds(30),
-        };
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        _http = CreateClient(BaseUrl, token);
     }
 
-    public string BaseUrl { get; }
+    public string BaseUrl { get; private set; }
+
+    private static HttpClient CreateClient(string baseUrl, string token)
+    {
+        var http = new HttpClient
+        {
+            BaseAddress = new Uri($"{baseUrl}/"),
+            Timeout = TimeSpan.FromSeconds(30),
+        };
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return http;
+    }
+
+    /// <summary>
+    /// W-UI9: point this instance at another route. Every consumer keeps its
+    /// IMicaGoApi reference; requests already in flight finish on the old client
+    /// (retired, disposed with the API) and the live realtime socket is cancelled
+    /// so the reconnect loop reopens it on the new route.
+    /// </summary>
+    public void Rebase(string baseUrl, string webSocketUrl)
+    {
+        var normalized = baseUrl.TrimEnd('/');
+        CancellationTokenSource previous;
+        lock (_routeGate)
+        {
+            if (string.Equals(normalized, BaseUrl, StringComparison.OrdinalIgnoreCase)) return;
+            _retiredClients.Add(_http);
+            _http = CreateClient(normalized, _token);
+            BaseUrl = normalized;
+            _webSocketUri = new Uri(webSocketUrl);
+            previous = _routeChanged;
+            _routeChanged = new CancellationTokenSource();
+        }
+        previous.Cancel();
+    }
 
     public async Task<ChatPreferences> GetChatPreferencesAsync(CancellationToken cancellationToken = default)
     {
@@ -195,9 +227,17 @@ public sealed class MicaGoApi : IMicaGoApi
 
     public async IAsyncEnumerable<RealtimeEvent> ListenRealtimeAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        Uri uri;
+        CancellationToken routeChanged;
+        lock (_routeGate)
+        {
+            uri = _webSocketUri;
+            routeChanged = _routeChanged.Token;
+        }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, routeChanged);
         using var socket = new ClientWebSocket();
         socket.Options.SetRequestHeader("Authorization", $"Bearer {_token}");
-        await socket.ConnectAsync(_webSocketUri, cancellationToken);
+        await socket.ConnectAsync(uri, linked.Token);
         var buffer = new byte[64 * 1024];
         while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
         {
@@ -205,7 +245,7 @@ public sealed class MicaGoApi : IMicaGoApi
             WebSocketReceiveResult result;
             do
             {
-                result = await socket.ReceiveAsync(buffer, cancellationToken);
+                result = await socket.ReceiveAsync(buffer, linked.Token);
                 if (result.MessageType == WebSocketMessageType.Close) yield break;
                 payload.Write(buffer, 0, result.Count);
             } while (!result.EndOfMessage);
@@ -355,7 +395,16 @@ public sealed class MicaGoApi : IMicaGoApi
     private static bool? GetBoolean(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : null;
     private static IReadOnlyList<string> GetStringArray(JsonElement element, string name) => element.TryGetProperty(name, out var values) && values.ValueKind == JsonValueKind.Array ? values.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString()!).ToArray() : [];
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        lock (_routeGate)
+        {
+            _http.Dispose();
+            foreach (var client in _retiredClients) client.Dispose();
+            _retiredClients.Clear();
+            _routeChanged.Dispose();
+        }
+    }
 
     private sealed class ProgressStreamContent(Stream source, IProgress<double>? progress) : HttpContent
     {

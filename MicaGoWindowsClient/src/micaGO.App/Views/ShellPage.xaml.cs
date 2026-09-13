@@ -670,19 +670,27 @@ public sealed partial class ShellPage : Page
         ApplyChatAppearance();
     }
 
+    private string? _appliedBackgroundKey;
+
     private void ApplyChatAppearance()
     {
         var path = AppServices.Current.Appearance.ChatBackgroundPath;
-        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+        var hasBackground = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+        // A picked image is always copied to the same file name, so the write
+        // time tells a new image from a plain appearance refresh — changing the
+        // bubble colour no longer reloads (and flashes) the background.
+        var key = hasBackground ? $"{path}|{File.GetLastWriteTimeUtc(path!).Ticks}" : null;
+        if (key != _appliedBackgroundKey)
         {
-            ChatBackgroundImage.Source = new BitmapImage(new Uri(path, UriKind.Absolute));
-            ChatBackgroundImage.Visibility = Visibility.Visible;
+            _appliedBackgroundKey = key;
+            ChatBackgroundImage.Source = hasBackground
+                ? new BitmapImage { CreateOptions = BitmapCreateOptions.IgnoreImageCache, UriSource = new Uri(path!, UriKind.Absolute) }
+                : null;
         }
-        else
-        {
-            ChatBackgroundImage.Source = null;
-            ChatBackgroundImage.Visibility = Visibility.Collapsed;
-        }
+        var visibility = hasBackground ? Visibility.Visible : Visibility.Collapsed;
+        ChatBackgroundImage.Visibility = visibility;
+        ChatBackgroundScrim.Visibility = visibility;
+        MicaGo.App.Services.ChatSurfaceBrushes.Apply(solid: hasBackground);
         Controls.MessageBubble.RefreshAppearance();
     }
 

@@ -9,7 +9,7 @@
 | WinUI 3 工程 | Debug x64 已验证 | .NET 10、WinAppSDK 2.2、x64/ARM64、unpackaged；VS 2026 + .NET 10.0.302 编译 0 warning/error | 验证 ARM64 和 Release |
 | Mica、标题栏与 DPI | Windows 11 暗色已验证 | 原生 caption buttons、低 tint Mica 标题栏/侧栏、独立联系人栏、纯色聊天画布、局部圆角、Per-Monitor V2 | 验证浅色、高对比度和跨显示器切换 |
 | 配对 JSON | 代码完成，Windows 待验证 | v1/v2/v3、隐藏地址过滤、URL 校验 | 使用真实 Companion JSON 验收 |
-| LAN/Public 选择 | 代码完成，Windows 待验证 | 多 LAN 并行 health+auth、最快线路、Public 回退 | 增加逐线路诊断和手动固定线路 |
+| LAN/Public 选择 | 代码完成，Windows 待验证 | 多 LAN 并行 health+auth、最快线路、Public 回退；W-UI9 设置页线路卡（逐线路可用性/延迟、手动切换并保持到断开）、断线重连前重新选线路 | Windows 上验证切换与断线回退 |
 | 凭据安全 | 代码完成，Windows 待验证 | Windows Credential Manager，配置不含 token | Windows 上检查写入、恢复和删除 |
 | 会话列表 | 已接入 | 真实 `/api/chats`、搜索、SQLite 缓存、Google 名称/头像、多路由联系人合并、本地置顶排序 | 自定义别名与群聊组合头像 |
 | 历史消息 | 已接入 | cache-first、50 条分页、切换取消旧请求、服务端页合并后从 SQLite 重建视图 | 将“加载更早”按钮改为纯滚动触发并补加载骨架 |
@@ -105,6 +105,22 @@
 - **每次发送"刷新一下"**：三处根因一起修——① 会话侧栏 `ApplyFilter` 原来每条消息 `Chats.Clear()`+重建（整个左栏闪烁+丢滚动），改为 `SyncChats` 按 Id 增量 diff（排序变化走 `Move`，配合 RepositionThemeTransition 平滑上移）；② `ScrollToLastMessageAsync` 原来 `ScrollIntoView`+16ms 延迟+二次 `UpdateLayout`+`ChangeView` 造成可见的二段跳，改为单次 `ChangeView`；③ `MessageList` 加 `ItemsStackPanel.ItemsUpdatingScrollMode="KeepLastItemInView"`（贴底时新消息自动跟随的原生聊天行为）。
 - **侧栏 Unigram 化**：`MicaGoChatListStyle` 换 `ListViewItemPresenter` 模板——8px 圆角 hover/选中面、左缘强调色选中指示条（`SelectionIndicatorVisualEnabled` Inline 模式，即 NavigationView 同款 pill）、禁用勾选标记。
 - **底栏 Flutter 化**：composer 从"透明容器+独立胶囊输入框"改为**一个完整胶囊**（`MicaGoComposerBrush` 底+描边+圆角 24），内含透明无边框 TextBox 与 `MicaGoComposerIconButtonStyle` 圆形按钮（SubtleFill 附件/麦克风 + 强调色发送），对应 Flutter 底栏的外层圆角容器结构。
+
+## 对齐 Flutter 近期修整（W-UI9，Windows 待验证）
+
+- **服务器线路卡（Flutter C85）**：设置 → 连接列出所有线路（完整地址，顺序固定），每行写 可用·延迟 / 不可用 / 检测中 / 已连接·延迟 / 正在连接 / 正在切换。圆点＝正在用的线路，只有“可用”的能点；检测只让行变灰，不会切换或断开。点选后立即切换，结果用 InfoBar 提示（4 秒自动收起）。
+- **断线自动换线路**：以前 Windows 只在启动连接时选一次线路，局域网断了会一直重连同一个地址。现在实时连接每次重连前重新选线路：先单独试手动选的线路，连不上再在其他线路里选，换到别的线路后清除手动选择（全都连不上时保留）。切换不替换 API 对象：`MicaGoApi.Rebase` 换 HttpClient 并取消当前 WebSocket，重连循环在新线路上重新连，所有持有 `IMicaGoApi` 的地方继续有效。
+- **解除配对（C76）**：“Disconnect”改为本地化的“解除配对并清除数据”，对话框写清会移除服务器地址、令牌和本地缓存，并同时清空消息/媒体缓存。
+- **隐藏的联系人（C83）**：不再常驻说明文字；同步状态和操作按钮放到滚动内容最后，只有需要处理时才显示。
+- **回应胶囊（C81）**：气泡上方预留 20px，胶囊不再压到上一条消息。
+- 契约测试：`RouteSelectionTests`。
+
+## 聊天背景遮罩 + 自定义背景下的实色表面 + 气泡预设色（W-UI8，Windows 待验证）
+
+- **背景遮罩**：与 Flutter `_ChatBackground` 一致，自定义背景图上加一层 `ChatBackgroundScrim`（浅色白 30%、深色黑 38%）。背景图只在路径或文件修改时间变化时重新加载，改气泡颜色不再让背景闪一下。
+- **透明框**：设了自定义背景时，`ChatSurfaceBrushes.Apply` 就地把共享主题画刷改成实色——联系人栏/输入框/录音栏/多选栏（acrylic `AlwaysUseFallback`），日期与引用胶囊、回应胶囊、文件卡片、链接预览、回到底部按钮（新 `MicaGoChatChipBrush`/`MicaGoChatCardBrush`）。去掉背景后恢复原来的半透明。浅色/深色字典都会改，切主题不失效。
+- **气泡颜色**：保留“跟随系统强调色”开关；关闭后显示 12 个与 Flutter 主题色相同的预设色块 + 自定义色环。色环拖动时只预览，关闭弹窗时才保存。
+- 待 Windows 验证：画刷就地修改是否实时生效、色块排版。
 
 ## 刷新稳定性修复 + 更新检查（C74，Windows 待验证）
 

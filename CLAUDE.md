@@ -21,6 +21,51 @@ Four components:
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
 
+## Windows parity with the recent Flutter passes (W-UI9)
+
+- **Route card (Flutter C85):** Settings → Connection lists
+  `ConnectionManager.RouteOptions` (`RouteSelection.DisplayOrder`, stable) as
+  radios whose caption is `RouteSelection.RowStatus`; radio = route in use,
+  only *available* rows are enabled; probing only greys rows. `SwitchRouteAsync`
+  stores `ConnectionProfile.SelectedBaseUrl` and returns a `RouteSwitchResult`
+  (InfoBar, auto-hides after 4s).
+- **Routes now fail over after startup.** Windows used to select a route only in
+  `ActivateAsync`, so a dropped LAN route retried the same URL forever. The
+  realtime loop now calls `ConnectionManager.ReselectRouteAsync` before each
+  reconnect; selection probes the chosen route alone first, otherwise the rest,
+  and drops the choice when another route takes over (kept if nothing is
+  reachable). Switching never replaces the API object — `MicaGoApi.Rebase`
+  swaps its HttpClient (old one retired until Dispose) and cancels the live
+  socket so the loop reopens it on the new route; every captured `IMicaGoApi`
+  stays valid. `_selectionEpoch` lets only the newest selection apply.
+- **Unpair (C76):** "Disconnect" → localized "Unpair and clear data" card with a
+  dialog naming all three consequences; it also clears the content/media cache.
+- **Hidden contacts (C83):** no standing `prefsDescription`; the sync status +
+  actions are the last item of the scrolling content, only when actionable.
+- **Reaction chip (C81):** 20px reserved above the bubble, chip at Y=0.
+- Tests: `RouteSelectionTests` (contract tests). **Not compiled on Windows.**
+
+## Windows chat background scrim + solid surfaces + bubble presets (W-UI8)
+
+- **Scrim like Flutter's `_ChatBackground`:** `ChatBackgroundScrim` over
+  `ChatBackgroundImage` (`MicaGoChatBackgroundScrimBrush`: light white 30%,
+  dark black 38%). The image only reloads when path + write time change (the
+  picked file is always copied to the same name), with `IgnoreImageCache`.
+- **See-through boxes over a custom background:** `ChatSurfaceBrushes.Apply`
+  flips shared theme brushes in place (Light + Dark dictionaries) —
+  `MicaGoContactBarBrush` acrylic → `AlwaysUseFallback` (header, composer,
+  voice/selection bars via the `MicaGoComposerBrush` alias) and the new
+  `MicaGoChatChipBrush` / `MicaGoChatCardBrush` → opaque (date/reply chips,
+  reaction chip, card tiles, link previews, jump button). Without a background
+  they keep the old translucent values. New thread surfaces should use these
+  brushes, not the system Subtle/Card fills.
+- **Bubble colour:** the follow-accent toggle stays; when off, the card shows 12
+  preset swatches (`AppearanceService.BubbleColorPresets` = Flutter theme
+  colours) plus the custom ring picker, which now previews while dragging and
+  saves once on flyout close (it used to save + refresh every bubble per step).
+- Authored on macOS, **not compiled on Windows** — verify brush mutation
+  propagates live and the swatch layout.
+
 ## Route card: radio = route in use (C85, client-only)
 
 - `_RouteSwitcher` lists `AppController.routeOptions` (stable order —

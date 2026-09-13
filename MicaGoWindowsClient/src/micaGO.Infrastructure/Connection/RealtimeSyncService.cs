@@ -6,7 +6,11 @@ namespace MicaGo.Infrastructure.Connection;
 
 public sealed record RealtimeMessageBatch(IReadOnlyList<Message> Messages, bool AllowNotifications);
 
-public sealed class RealtimeSyncService(IMicaGoApi api, LocalCacheStore cache, ChatPreferenceSync? preferences = null) : IAsyncDisposable
+public sealed class RealtimeSyncService(
+    IMicaGoApi api,
+    LocalCacheStore cache,
+    ChatPreferenceSync? preferences = null,
+    Func<CancellationToken, Task>? reselectRoute = null) : IAsyncDisposable
 {
     private const string CursorKey = "sync.cursor";
     private readonly CancellationTokenSource _shutdown = new();
@@ -81,6 +85,14 @@ public sealed class RealtimeSyncService(IMicaGoApi api, LocalCacheStore cache, C
             {
                 attempt++;
                 StatusChanged?.Invoke(this, "Reconnecting");
+                // W-UI9: re-run route selection before reconnecting, so a dropped
+                // route falls back to another one (a manual switch also lands
+                // here, through the cancelled socket).
+                if (reselectRoute is not null)
+                {
+                    try { await reselectRoute(cancellationToken); }
+                    catch when (!cancellationToken.IsCancellationRequested) { }
+                }
                 var delay = TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, Math.Min(attempt, 5))));
                 try { await Task.Delay(delay, cancellationToken); } catch (OperationCanceledException) { break; }
             }

@@ -291,6 +291,11 @@
                            Stretch="UniformToFill"
                            IsHitTestVisible="False"
                            Visibility="Collapsed" />
+                    <!-- W-UI8: Flutter's wash over a custom background keeps text readable. -->
+                    <Border x:Name="ChatBackgroundScrim"
+                            Background="{ThemeResource MicaGoChatBackgroundScrimBrush}"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed" />
                     <StackPanel x:Name="EmptyState"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -354,7 +359,7 @@
                             Padding="0"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Bottom"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            Background="{ThemeResource MicaGoChatCardBrush}"
                             BorderBrush="{ThemeResource MicaGoSubtleStrokeBrush}"
                             BorderThickness="1"
                             Canvas.ZIndex="2"

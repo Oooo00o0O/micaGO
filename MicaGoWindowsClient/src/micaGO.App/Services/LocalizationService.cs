@@ -91,6 +91,36 @@ public sealed class LocalizationService
         values["developer"] = traditional ? "開發人員" : chinese ? "开发人员" : "Developer";
         values["newMessage"] = traditional ? "新訊息" : chinese ? "新消息" : "New message";
         values["customColor"] = traditional ? "自訂色彩" : chinese ? "自定义颜色" : "Custom color";
+        // W-UI8: bubble colour presets (names match the Flutter theme colours).
+        values["presetColors"] = traditional ? "預設色彩" : chinese ? "预设颜色" : "Preset colors";
+        values["color.micago"] = "micaGO";
+        values["color.bicao"] = chinese ? "碧草" : "Bicao";
+        values["color.wisteria"] = chinese ? "紫藤" : "Wisteria";
+        values["color.citrus"] = chinese ? "柑橘" : "Citrus";
+        values["color.inkWash"] = chinese ? "水墨" : "Ink wash";
+        values["color.paleGold"] = traditional ? "淺金" : chinese ? "浅金" : "Pale gold";
+        values["color.wineRed"] = traditional ? "酒紅" : chinese ? "酒红" : "Wine red";
+        values["color.blueGreen"] = traditional ? "藍綠" : chinese ? "蓝绿" : "Blue green";
+        values["color.indigo"] = traditional ? "靛藍" : chinese ? "靛蓝" : "Indigo";
+        values["color.peachBlossom"] = chinese ? "桃花" : "Peach blossom";
+        values["color.witheredGrass"] = chinese ? "枯草" : "Withered grass";
+        values["color.amber"] = chinese ? "琥珀" : "Amber";
+        // W-UI9: route card + unpair (Flutter C85/C76).
+        values["route"] = traditional ? "伺服器路線" : chinese ? "服务器线路" : "Server route";
+        values["routeChecking"] = traditional ? "檢查中…" : chinese ? "检测中…" : "Checking…";
+        values["routeAvailable"] = chinese ? "可用" : "Available";
+        values["routeUnavailable"] = traditional ? "無法使用" : chinese ? "不可用" : "Unavailable";
+        values["routeConnected"] = traditional ? "已連線" : chinese ? "已连接" : "Connected";
+        values["routeConnecting"] = traditional ? "正在連線…" : chinese ? "正在连接…" : "Connecting…";
+        values["routeSwitching"] = traditional ? "正在切換…" : chinese ? "正在切换…" : "Switching…";
+        values["routeSwitchedToast"] = traditional ? "已切換到這條路線，斷線時會自動換路線" : chinese ? "已切换到这条线路，断开时会自动换线路" : "Switched to this route. If it disconnects, micaGO switches automatically.";
+        values["routeFellBackToast"] = traditional ? "這條路線連不上，已自動換到其他路線" : chinese ? "这条线路连不上，已自动换到其他线路" : "This route can't connect. Switched to another route automatically.";
+        values["routeSwitchFailedToast"] = traditional ? "這條路線連不上" : chinese ? "这条线路连不上" : "This route can't connect.";
+        values["unpair"] = traditional ? "解除配對並清除資料" : chinese ? "解除配对并清除数据" : "Unpair and clear data";
+        values["unpairDescription"] = traditional ? "移除已儲存的伺服器、權杖與本機快取" : chinese ? "移除已保存的服务器、令牌和本地缓存" : "Removes the saved server, token and local cache";
+        values["unpairTitle"] = traditional ? "解除這台電腦的配對？" : chinese ? "解除这台电脑的配对？" : "Unpair this PC?";
+        values["unpairBody"] = traditional ? "這會移除已儲存的伺服器位址、Windows 認證管理員中的權杖，以及這台電腦上快取的對話與媒體。Mac 上的訊息不受影響，隨時可以重新配對。" : chinese ? "这会移除已保存的服务器地址、Windows 凭据管理器中的令牌，以及这台电脑上缓存的对话和媒体。Mac 上的消息不受影响，随时可以重新配对。" : "This removes the saved server address, the token in Windows Credential Manager, and this PC's cached conversations and media. Messages on your Mac are not touched — you can pair again at any time.";
+        values["unpairConfirm"] = traditional ? "解除配對" : chinese ? "解除配对" : "Unpair";
         values["about"] = traditional ? "關於" : chinese ? "关于" : "About";
         values["aboutSubtitle"] = traditional ? "iMessage 的 Windows 伴侶用戶端" : chinese ? "iMessage 的 Windows 伴侣客户端" : "The Windows companion client for iMessage";
         values["version"] = traditional ? "版本 {0} · Muscovite" : chinese ? "版本 {0} · Muscovite" : "Version {0} · Muscovite";

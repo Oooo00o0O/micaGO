@@ -15,18 +15,28 @@ public sealed class EndpointSelector
 {
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(6);
 
+    /// <param name="excludeBaseUrl">A route already tried (the chosen route) to skip.</param>
+    /// <param name="observe">Receives every probe result (Settings route card).</param>
     public async Task<EndpointProbeResult> SelectAsync(
         IReadOnlyList<ConnectionEndpoint> endpoints,
         ConnectionMode mode,
         string token,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? excludeBaseUrl = null,
+        Action<EndpointProbeResult>? observe = null)
     {
+        if (excludeBaseUrl is not null)
+        {
+            endpoints = endpoints
+                .Where(endpoint => !string.Equals(endpoint.BaseUrl, excludeBaseUrl, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
         var lan = endpoints.Where(endpoint => endpoint.Kind == EndpointKind.Lan).ToArray();
         var publicEndpoints = endpoints.Where(endpoint => endpoint.Kind == EndpointKind.Public).ToArray();
 
         if (mode != ConnectionMode.PublicOnly)
         {
-            var selectedLan = await SelectFastestAsync(lan, token, cancellationToken);
+            var selectedLan = await SelectFastestAsync(lan, token, cancellationToken, observe);
             if (selectedLan is not null)
             {
                 return selectedLan;
@@ -35,7 +45,7 @@ public sealed class EndpointSelector
 
         if (mode != ConnectionMode.LanOnly)
         {
-            var selectedPublic = await SelectFastestAsync(publicEndpoints, token, cancellationToken);
+            var selectedPublic = await SelectFastestAsync(publicEndpoints, token, cancellationToken, observe);
             if (selectedPublic is not null)
             {
                 return selectedPublic;
@@ -48,21 +58,30 @@ public sealed class EndpointSelector
     private static async Task<EndpointProbeResult?> SelectFastestAsync(
         IReadOnlyList<ConnectionEndpoint> endpoints,
         string token,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<EndpointProbeResult>? observe)
     {
         if (endpoints.Count == 0)
         {
             return null;
         }
 
-        var results = await Task.WhenAll(endpoints.Select(endpoint => ProbeAsync(endpoint, token, cancellationToken)));
+        var results = await Task.WhenAll(endpoints.Select(endpoint => ProbeCoreAsync(endpoint, token, cancellationToken)));
+        foreach (var result in results) observe?.Invoke(result);
         return results
             .Where(result => result.IsAvailable)
             .OrderBy(result => result.Latency)
             .FirstOrDefault();
     }
 
-    private static async Task<EndpointProbeResult> ProbeAsync(
+    /// <summary>Health + auth check of one route; never throws for network errors.</summary>
+    public Task<EndpointProbeResult> ProbeAsync(
+        ConnectionEndpoint endpoint,
+        string token,
+        CancellationToken cancellationToken = default) =>
+        ProbeCoreAsync(endpoint, token, cancellationToken);
+
+    private static async Task<EndpointProbeResult> ProbeCoreAsync(
         ConnectionEndpoint endpoint,
         string token,
         CancellationToken cancellationToken)
