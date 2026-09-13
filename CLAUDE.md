@@ -52,12 +52,17 @@ Four components:
 - **Local DMGs sign with the Developer ID identity** (team 37LJQ72TKW, same as
   published builds) so macOS privacy grants such as Full Disk Access survive
   replacing an installed copy; an unsigned build changes the code identity.
-- **CI:** removed the Flutter Windows job (there was no Flutter macOS job) and
-  added a `windows` job for the WinUI app on `windows-latest`:
-  `setup-dotnet` 10.0.x → Core contract tests → `package-release-x64.ps1` →
-  `micaGO-<version>-windows-x64.zip`, published with the release. Not yet run on
-  GitHub. The site links the first asset named `*windows*.exe` (preferred) or
-  `*windows*.zip`.
+- **CI:** removed the Flutter Windows job and the macOS DMG job — macOS
+  signing, notarization and the Sparkle appcast stay on the local Mac, so the
+  Developer ID certificate and Sparkle key never live in GitHub. Added a
+  `windows` job for the WinUI app (`setup-dotnet` 10.0.x → Core contract tests →
+  `package-release-x64.ps1` → `micaGO-<version>-windows-x64.zip`; its first run
+  succeeded). Tag builds create a **draft** release: attach the local notarized
+  DMG + `appcast.xml`, then publish. Flutter is pinned to 3.44.3 and Android
+  uses Java 21 to match local builds. Android CI had failed only because the
+  four `ANDROID_KEY*` secrets were never configured; manual runs without them
+  now analyze/test and skip the APK. The site links the first asset named
+  `*windows*.exe` (preferred) or `*windows*.zip`.
 - **Website** (`docs/index.html`) rewritten in plain language around the common
   misunderstanding ("a remote control for your own Mac — no Mac, no micaGO"),
   with an "Is this for me?" section, a Windows download card (`.download-grid`
