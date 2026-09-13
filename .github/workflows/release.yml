@@ -232,7 +232,9 @@ jobs:
   macos:
     name: macOS DMG (Companion + bundled backend)
     needs: meta
-    runs-on: macos-15
+    # The checked-in symbol assets use template format 7, which requires the
+    # Xcode 26 toolchain provided by the macOS 26 runner image.
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       # A complete secret set produces a signed, notarized release with an

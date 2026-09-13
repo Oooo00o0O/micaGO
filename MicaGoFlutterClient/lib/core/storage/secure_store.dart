@@ -88,7 +88,7 @@ class SecureStore {
     try {
       final secureValue = await _storage.read(key: key).timeout(_secureTimeout);
       if (secureValue != null) return secureValue;
-      return _readFallback(key);
+      return await _readFallback(key);
     } catch (error) {
       await _enableFallback(error);
       return _readFallback(key);
