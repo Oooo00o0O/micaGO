@@ -1002,7 +1002,10 @@ class _HiddenItemsCardState extends State<_HiddenItemsCard> {
             trailing: const Icon(Icons.chevron_right),
             onTap: _openContacts,
           ),
-          ChatPreferenceStatus(preferences: widget.app.chatPreferences),
+          ChatPreferenceStatus(
+            preferences: widget.app.chatPreferences,
+            showDescription: false,
+          ),
         ],
       ),
     );
@@ -1070,7 +1073,10 @@ class HiddenContactsPage extends StatelessWidget {
       emptyKey: 'settings.noHiddenContacts',
       restoredKey: 'settings.releasedContacts',
       changes: app.chatPreferences,
-      header: ChatPreferenceStatus(preferences: app.chatPreferences),
+      footer: ChatPreferenceStatus(
+        preferences: app.chatPreferences,
+        padding: const EdgeInsets.fromLTRB(4, 16, 4, 0),
+      ),
       load: app.hiddenChats,
       restore: app.releaseHiddenChats,
       rowOf: (context, chat) => _HiddenRow(
@@ -1085,7 +1091,7 @@ class HiddenContactsPage extends StatelessWidget {
 
 class _HiddenItemsPage<T> extends StatefulWidget {
   final Listenable? changes;
-  final Widget? header;
+  final Widget? footer;
   final String title;
   final String countKey;
   final IconData emptyIcon;
@@ -1098,7 +1104,7 @@ class _HiddenItemsPage<T> extends StatefulWidget {
   const _HiddenItemsPage({
     super.key,
     this.changes,
-    this.header,
+    this.footer,
     required this.title,
     required this.countKey,
     required this.emptyIcon,
@@ -1215,26 +1221,30 @@ class _HiddenItemsPageState<T> extends State<_HiddenItemsPage<T>> {
               onPressed: () => setState(() => _selectMode = true),
             ),
       ],
-      child: Column(
-        children: [
-          if (widget.header != null) widget.header!,
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _items.isEmpty
-                ? _HiddenEmptyState(
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _items.isEmpty
+          ? Column(
+              children: [
+                Expanded(
+                  child: _HiddenEmptyState(
                     icon: widget.emptyIcon,
                     label: strings.t(widget.emptyKey),
-                  )
-                : Column(
-                    children: [
-                      Expanded(child: _list(strings)),
-                      if (_selectMode) _restoreBar(strings),
-                    ],
                   ),
-          ),
-        ],
-      ),
+                ),
+                if (widget.footer != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: widget.footer,
+                  ),
+              ],
+            )
+          : Column(
+              children: [
+                Expanded(child: _list(strings)),
+                if (_selectMode) _restoreBar(strings),
+              ],
+            ),
     );
   }
 
@@ -1257,6 +1267,7 @@ class _HiddenItemsPageState<T> extends State<_HiddenItemsPage<T>> {
             ],
           ),
         ),
+        ?widget.footer,
       ],
     );
   }
