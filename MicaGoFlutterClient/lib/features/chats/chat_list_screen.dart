@@ -339,6 +339,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         ? _NoMatches(query: _query)
                         : ListView.separated(
                             controller: _scroll,
+                            // A short list doesn't fill the screen, so it would not
+                            // scroll and pull-to-refresh could never start.
+                            physics: const AlwaysScrollableScrollPhysics(),
                             padding: EdgeInsets.fromLTRB(
                               12,
                               12,
@@ -573,6 +576,7 @@ class _NoMatches extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = MicaLocalizations.of(context);
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
         const Icon(Icons.search_off, size: 48),
@@ -1082,6 +1086,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.25),
         const Icon(Icons.chat_bubble_outline, size: 56),
