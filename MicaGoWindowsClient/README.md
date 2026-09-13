@@ -1,33 +1,117 @@
 # micaGO Windows
 
-micaGO 的原生 Windows 客户端，使用 C#、.NET 10、WinUI 3 和 Windows App SDK 2.2。
+Native Windows client for a **micaGO** relay server, built with C#, .NET 10,
+WinUI 3, and Windows App SDK 2.2. Two-pane Fluent chat UI (Mica backdrop,
+Windows 11 settings-card styling), feature parity tracked against the Flutter
+client.
 
-当前产品版本：`0.71.0`，与 Flutter 客户端、Go 服务端和 macOS Companion 对齐。
+Versions are kept in lockstep with the Flutter client, Go server, and macOS
+Companion. Solution entry point: `micaGO.Windows.sln`.
 
-当前版本已经建立 WinUI 3 双栏聊天界面和真实服务器连接链路，包括配对 JSON、LAN/Public 线路探测、Windows Credential Manager 凭据存储、会话列表、历史消息和文本发送。2026-07-19 已在 Windows 11、Visual Studio 2026、.NET 10.0.302、Debug x64 下完成首次编译和启动验证；仍属于开发中的连接版 MVP，不能视为可发布版本。
+> **Status: functional, still pre-release.** The client pairs, syncs, and chats
+> against a real server, but several recent passes were authored on macOS and
+> are still awaiting a Windows build/verification run, MSIX packaging has not
+> started, and ARM64/Release configurations are unverified. The authoritative
+> per-module status (including what "code complete, pending Windows
+> verification" currently covers) is
+> [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
-## Windows 首次接手
+## What it does today
 
-请先阅读：
+- **Pairing & connection** — paste the Companion's connection JSON (v1/v2/v3
+  payloads); all LAN candidates are probed in parallel (health + auth) and the
+  fastest wins, with public-URL fallback. The bearer token is stored in
+  **Windows Credential Manager** (never in config files); the rest of the
+  profile lives in `%LOCALAPPDATA%\micaGO\connection-profile.json`. Saved
+  pairings restore silently on launch — the dedicated pairing window
+  (`ConnectionWindow`) only appears when restore fails or after a disconnect.
+- **Chats & threads** — real `/api/chats` with search, contact-name/avatar
+  resolution, multi-route contact merging (with a per-contact opt-out), local
+  pin sorting, and watermark-derived unread dots that survive restarts.
+  Messages are cache-first with 50-row paging; snapshots merge with live rows
+  (`MessageSemantics.MergeSnapshot`) instead of replacing them, so realtime
+  arrivals never flicker out.
+- **Sending** — optimistic text bubbles with temp-GUID reconciliation and a
+  stable presentation key (no re-animation on confirm); multi-file attachment
+  sends with per-item progress, cancel, retry, and restart recovery; **voice
+  messages** (MediaCapture → m4a).
+- **Realtime + catch-up** — WebSocket with the token in the `Authorization`
+  header and reconnect backoff; `message:*` frames are applied directly (read
+  receipts/edits update live) and also trigger cursor-based delta catch-up
+  persisted in SQLite (WAL).
+- **Message rendering** — deterministic-bind `MessageBubble` (recycling-safe):
+  media always renders bubble-less above the text bubble, reactions, replies
+  with jump-to-source, URL preview cards, location cards (open in Maps),
+  interactive-app/balloon cards, send effects (bubble + emoji particle screen
+  effects, Invisible Ink cover), big-emoji and sticker handling, and **Twemoji
+  flag emoji** (Windows has no flag glyphs; rendered via `RichTextBlock` —
+  WinUI `TextBlock.Inlines` cannot host `InlineUIContainer`).
+- **Media** — image viewer with zoom and prev/next, audio/video playback with
+  an HEVC `playable` transcode fallback, save/open-with, on-disk media cache,
+  and a details media grid.
+- **Multi-select** — forward (re-uploads from the media cache under original
+  names) and hide (`hidden_messages` tombstones that re-sync cannot resurrect).
+- **Notifications & tray** — AppNotification per chat, click-through to the
+  conversation, close-to-tray with a recent-contacts tray menu.
+- **Settings** — General / Appearance / Contacts / Storage / About; theme,
+  Twemoji flags toggle, chat background, bubble color (follow system accent or
+  custom), vCard contact import, `.micagobak` settings backup/restore (the
+  token is in Credential Manager and never enters the backup), offline test
+  contact, and a read-only update check against GitHub releases. Localized in
+  English, Simplified Chinese, and Traditional Chinese.
 
-- [首次构建与验证](docs/WINDOWS_FIRST_BUILD.md)
-- [连接协议与凭据安全](docs/CONNECTION_PROTOCOL.md)
-- [代码结构](docs/ARCHITECTURE.md)
-- [功能完成度和剩余工作](docs/IMPLEMENTATION_STATUS.md)
+## Not done yet
 
-解决方案入口：`micaGO.Windows.sln`。
+MSIX packaging (currently unpackaged, self-contained), ARM64 and Release
+verification, light/high-contrast theme verification, background transfers,
+and the audit items listed at the bottom of
+[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
-## 当前技术选择
+## Build
 
-- UI：WinUI 3；原生标题栏与侧栏共享低 tint 的 `MicaBackdrop`，联系人栏是聊天内容内的独立圆角表面，聊天画布使用不透明纯色
-- 显示：Per-Monitor V2 DPI awareness，初始窗口和最小尺寸按当前显示器缩放率换算
-- 运行时：.NET 10
-- Windows App SDK：2.2.0 stable
-- 分发模式：暂时为 unpackaged、自包含运行；确认连接稳定后再加入 MSIX
-- 凭据：token 存入 Windows Credential Manager，不写入配置文件
-- 普通配置：`%LOCALAPPDATA%\micaGO\connection-profile.json`
-- 设计参考：保留 Flutter Pad 双栏布局，只参考 Unigram 的视觉密度和 Fluent 状态，不复制其 GPL 源码、XAML 或资源
+Requirements: Windows 11 (Windows 10 1809 minimum, but Mica renders only on
+11), Visual Studio 2026 (or latest 2022) with the WinUI application
+development workload, .NET 10 SDK, Developer Mode enabled.
 
-## 当前边界
+```powershell
+dotnet restore .\micaGO.Windows.sln
+dotnet build .\micaGO.Windows.sln -c Debug -p:Platform=x64
+```
 
-WebSocket、delta 补漏、SQLite、完整未读状态、媒体预览/查看器、托盘、通知和 MSIX 尚未完成。详细状态见 [IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)。
+Or open `micaGO.Windows.sln`, set `micaGO.App` as startup, select
+`Debug | x64` (not ARM64 first), rebuild, F5.
+
+Core contract tests (no WinUI, no third-party test framework — plain
+`dotnet run`, exit code 0 on success):
+
+```powershell
+dotnet run --project .\tests\micaGO.Core.ContractTests\micaGO.Core.ContractTests.csproj
+```
+
+## Project layout
+
+```
+src/
+  micaGO.Core/            # pure logic: pairing, routing, message semantics (contract-tested)
+  micaGO.Infrastructure/  # SQLite cache, API client, credential storage, backup, voice
+  micaGO.App/             # WinUI 3 app: windows, ShellPage, MessageBubble, styles, Twemoji assets
+tests/
+  micaGO.Core.ContractTests/
+docs/
+  WINDOWS_FIRST_BUILD.md  # environment + first build/verification steps
+  CONNECTION_PROTOCOL.md  # pairing JSON + credential security
+  ARCHITECTURE.md         # code structure
+  IMPLEMENTATION_STATUS.md# per-module status — the source of truth
+```
+
+## Technical choices
+
+- Per-Monitor V2 DPI awareness; initial and minimum window sizes scale with
+  the active display.
+- Unpackaged, self-contained distribution for now; MSIX (and the Credential
+  Manager → Credential Locker migration decision) comes after the connection
+  path is fully verified.
+- Design reference: the Flutter client's two-pane layout, with Unigram used
+  only as a visual-density/Fluent-state reference — no GPL source, XAML, or
+  assets are copied. Twemoji graphics are CC-BY 4.0 (see
+  `THIRD-PARTY-NOTICES.md`).

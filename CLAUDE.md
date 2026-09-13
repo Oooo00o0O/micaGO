@@ -4,11 +4,12 @@ Live notes for Claude when working in this repo. Keep it short; update it as par
 
 ## What MicaGo is
 
-Three components:
+Four components:
 
 - **Go relay server** — `MicaGoServer/micago-server`. Reads the Mac's Messages DB, exposes a local control + chat API, syncs into `relay.db`, serves chats/messages/delta + WebSocket. Tests: `go test ./...`, `go vet ./...`.
 - **macOS Companion** (SwiftUI) — `MicaGoServer/micago-mac-companion`. Menu-bar + dashboard that launches/monitors the server, manages pairing/URLs, sync rules, devices, notifications. Build: `xcodebuild`.
 - **Flutter Android client** — `MicaGoFlutterClient`. Pairs over LAN/public URL, syncs, sends, optional FCM push. Checks: `flutter analyze`, `flutter test`, `flutter build apk --debug`.
+- **Windows client** (WinUI 3 / .NET 10) — `MicaGoWindowsClient`. Two-pane Fluent chat client; several passes were authored on macOS and await Windows verification (source of truth: `docs/IMPLEMENTATION_STATUS.md`). Build needs Windows: `dotnet build .\micaGO.Windows.sln -c Debug -p:Platform=x64`.
 
 ## Important rules
 
@@ -19,6 +20,17 @@ Three components:
 - Keep final logs clean (debug-guarded only).
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
+
+## Component README rewrite (C80, docs-only)
+
+- `MicaGoWindowsClient/README.md` (was Chinese + pre-WS/SQLite era),
+  `MicaGoFlutterClient/README.md`, and `micago-mac-companion/README.md`
+  rewritten in English to match 0.71.0 reality (Windows: full feature set +
+  honest "pending Windows verification" status; Flutter: C54–C77 features,
+  WS header token; Companion: sidebar pages, tunnel control, Sparkle, Keep
+  Awake, Automation probe, IMCore uninstall). Keep them in sync with future
+  passes — the Windows README defers per-module status to
+  `IMPLEMENTATION_STATUS.md` on purpose.
 
 ## Windows client UI redesign (W-UI1)
 
