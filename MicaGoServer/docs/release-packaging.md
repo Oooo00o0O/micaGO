@@ -35,18 +35,25 @@ VERSION=0.78.0 \
 scripts/package-dmg.sh
 ```
 
-Signed and notarized DMG:
+Release DMG (signed, notarized, with the Sparkle appcast). Store the notary
+credentials once with
+`xcrun notarytool store-credentials "micaGO-notary" --apple-id <id> --team-id TEAMID`;
+the Sparkle EdDSA key is read from the login keychain:
 
 ```sh
 cd MicaGoServer/micago-mac-companion
 SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
-NOTARIZE=1 \
-APPLE_ID="you@example.com" \
 APPLE_TEAM_ID="TEAMID" \
-APPLE_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
+NOTARIZE=1 \
+NOTARY_KEYCHAIN_PROFILE="micaGO-notary" \
+GENERATE_APPCAST=1 \
 VERSION=0.78.0 \
 scripts/package-dmg.sh
 ```
+
+Upload `build/release/micaGO-Companion-0.78.0-mac.dmg` and
+`build/release/appcast.xml` from the same run — the appcast's signature and
+length only match that exact DMG.
 
 The DMG is styled as a standard drag-to-install disk image: it contains the
 Companion app, an `Applications` shortcut, and a Finder background image.
@@ -134,14 +141,20 @@ git push origin v0.78.0
 
 The workflow builds:
 
-- macOS DMG with bundled Go backend, plus the signed Sparkle `appcast.xml`.
-- Flutter Android release APK.
+- Flutter Android release APK. It needs the `ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`
+  repository secrets; tag builds fail without them, manual runs only analyze
+  and test.
+- Windows x64 zip of the WinUI client.
 - Unsigned iOS IPA and an experimental Linux tarball.
-- A GitHub Release when triggered by a tag.
+- A **draft** GitHub Release when triggered by a tag.
 
-The Companion's in-app updater reads
-`https://github.com/cinmou/MicaGo/releases/latest/download/appcast.xml`, so an
-update only reaches users once a tagged release with that appcast is published.
+The macOS Companion is not built in CI. Sign, notarize and generate
+`appcast.xml` locally (see "Mac Companion DMG"), attach the DMG and
+`appcast.xml` to the draft release, then publish it. The Companion's in-app
+updater reads
+`https://github.com/cinmou/MicaGo/releases/latest/download/appcast.xml`, so the
+release must not be published without that appcast.
 
 ## Historical Release Notes Example (0.62.0)
 
