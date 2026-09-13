@@ -83,7 +83,6 @@ public sealed class LocalizationService
         values["notificationDescription"] = traditional ? "僅在 micaGO 執行期間顯示 Windows 原生通知" : chinese ? "仅在 micaGO 运行期间显示 Windows 原生通知" : "Show native Windows notifications only while micaGO is running";
         values["notificationPreview"] = traditional ? "在通知中顯示訊息內容" : chinese ? "在通知中显示消息内容" : "Show message text in notifications";
         values["notificationPreviewDescription"] = traditional ? "關閉後，通知只顯示寄件者與「新訊息」。" : chinese ? "关闭后，通知只显示发送者和“新消息”。" : "When off, notifications show the sender and “New message” only.";
-        values["notificationHistorySilent"] = traditional ? "每次啟動後的第一輪歷史同步保持靜默；建立基線後收到的新訊息才會通知。" : chinese ? "每次启动后的第一轮历史同步保持静默；建立基线后收到的新消息才会通知。" : "The first history sync after each launch stays silent. New messages notify after that baseline is established.";
         values["cacheLabel"] = traditional ? "媒體與訊息快取" : chinese ? "媒体与消息缓存" : "Media and message cache";
         values["clearCacheTitle"] = traditional ? "清除本機快取？" : chinese ? "清除本地缓存？" : "Clear local cache?";
         values["clearCacheConfirm"] = traditional ? "本機訊息與媒體副本會被移除，下次同步時重新下載。" : chinese ? "本地消息与媒体副本会被移除，下次同步时重新下载。" : "Local message and media copies will be removed and downloaded again during sync.";
