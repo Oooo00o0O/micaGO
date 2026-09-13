@@ -1,27 +1,21 @@
 # micaGO release pipeline.
 #
 # Triggers:
-#   * Push a tag like v0.63.0  -> builds everything and PUBLISHES a GitHub Release.
+#   * Push a tag like v0.63.0  -> builds everything and creates a DRAFT GitHub Release.
 #   * Manual "Run workflow"    -> builds everything as downloadable artifacts only
-#                                 (no release is published) — use it to test the pipeline.
+#                                 (no release is created) — use it to test the pipeline.
 #
 # Artifacts:
-#   Android APK, unsigned iOS IPA, Windows zip, Linux tar.gz, macOS DMG.
+#   Android APK, Windows zip (native WinUI client), unsigned iOS IPA, Linux tar.gz.
 #
-# The Windows zip is the native WinUI client (MicaGoWindowsClient), packaged by
-# MicaGoWindowsClient/scripts/package-release-x64.ps1; the website links the
-# release asset whose name contains "windows".
+# The macOS Companion is NOT built here: it is signed, notarized and given its
+# Sparkle appcast on a local Mac (MicaGoServer/docs/release-packaging.md), so the
+# Developer ID certificate and Sparkle key never live in GitHub. Attach the DMG
+# and appcast.xml to the draft release before publishing it — the Companion's
+# updater reads releases/latest/download/appcast.xml.
 #
-# macOS signing/notarization is OPTIONAL: with no secrets configured the DMG is
-# built unsigned (same as before). To sign + notarize, add these repo secrets:
-#   MACOS_CERT_P12        base64 of the "Developer ID Application" .p12 certificate
-#   MACOS_CERT_PASSWORD   password of that .p12
-#   MACOS_SIGN_IDENTITY   e.g. Developer ID Application: Your Name (TEAMID)
-#   APPLE_ID              Apple ID email used for notarization
-#   APPLE_TEAM_ID         10-char team id
-#   APPLE_APP_PASSWORD    app-specific password (appleid.apple.com -> Sign-In & Security)
-#   SPARKLE_PRIVATE_KEY    Sparkle EdDSA private key exported by generate_keys -x
-# Android release signing is required. Add these repository secrets:
+# Android release signing needs these repository secrets (tag builds fail
+# without them; manual runs skip the APK and still analyze + test):
 #   ANDROID_KEYSTORE_BASE64    base64-encoded PKCS12/JKS release keystore
 #   ANDROID_KEYSTORE_PASSWORD  keystore password
 #   ANDROID_KEY_ALIAS          key alias
@@ -44,6 +38,10 @@ permissions:
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  # Matches the toolchain release builds are verified with locally.
+  FLUTTER_VERSION: "3.44.3"
 
 jobs:
   meta:
@@ -87,22 +85,33 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - name: Pub get
         working-directory: MicaGoFlutterClient
         run: flutter pub get
       - name: Configure release signing
+        id: signing
         run: |
+          missing=""
           for value in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
             if [ -z "${!value}" ]; then
-              echo "::error::$value is required for Android release signing"
-              exit 1
+              missing="$missing $value"
             fi
           done
+          if [ -n "$missing" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              echo "::error::Android release signing secrets are missing:$missing"
+              exit 1
+            fi
+            echo "::warning::Android release signing secrets are not configured (missing:$missing). Skipping the release APK on this manual run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           KEYSTORE_PATH="$RUNNER_TEMP/micago-release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           printf '%s\n' \
@@ -111,6 +120,7 @@ jobs:
             "keyAlias=$ANDROID_KEY_ALIAS" \
             "keyPassword=$ANDROID_KEY_PASSWORD" \
             > MicaGoFlutterClient/android/key.properties
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
       - name: Analyze
         working-directory: MicaGoFlutterClient
         run: flutter analyze
@@ -118,14 +128,17 @@ jobs:
         working-directory: MicaGoFlutterClient
         run: flutter test
       - name: Build APK
+        if: steps.signing.outputs.enabled == 'true'
         working-directory: MicaGoFlutterClient
         run: flutter build apk --release
       - name: Rename artifact
+        if: steps.signing.outputs.enabled == 'true'
         run: |
           mkdir -p out
           cp MicaGoFlutterClient/build/app/outputs/flutter-apk/app-release.apk \
             "out/micaGO-${{ needs.meta.outputs.version }}-android.apk"
       - uses: actions/upload-artifact@v4
+        if: steps.signing.outputs.enabled == 'true'
         with:
           name: android-apk
           path: out/*.apk
@@ -141,6 +154,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - name: Pub get
         working-directory: MicaGoFlutterClient
@@ -204,6 +218,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - name: Pub get
         working-directory: MicaGoFlutterClient
@@ -222,100 +237,20 @@ jobs:
           path: out/*.tar.gz
           if-no-files-found: error
 
-  macos:
-    name: macOS DMG (Companion + bundled backend)
-    needs: meta
-    runs-on: macos-15
-    timeout-minutes: 60
-    env:
-      # Tagged releases require every signing, notarization, and Sparkle secret.
-      # Manual workflow runs may still produce an unsigned development artifact.
-      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
-      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          cache-dependency-path: MicaGoServer/micago-server/go.sum
-      - name: Go tests
-        working-directory: MicaGoServer/micago-server
-        run: |
-          go vet ./...
-          go test ./...
-      - name: Install create-dmg
-        run: |
-          brew untap aws/tap || true
-          brew install create-dmg
-      - name: Import signing certificate (only when secrets are set)
-        if: env.MACOS_CERT_P12 != ''
-        run: |
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-          KEYCHAIN_PATH="$RUNNER_TEMP/release.keychain-db"
-          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" \
-            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
-          rm "$RUNNER_TEMP/cert.p12"
-      - name: Build DMG
-        working-directory: MicaGoServer/micago-mac-companion
-        run: |
-          chmod +x scripts/package-dmg.sh
-          export VERSION="${{ needs.meta.outputs.version }}"
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            for name in MACOS_CERT_P12 MACOS_CERT_PASSWORD MACOS_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD SPARKLE_PRIVATE_KEY; do
-              if [ -z "${!name}" ]; then
-                echo "::error::$name is required for a tagged macOS release"
-                exit 1
-              fi
-            done
-          fi
-          if [ -n "$MACOS_SIGN_IDENTITY" ]; then
-            export SIGN_IDENTITY="$MACOS_SIGN_IDENTITY"
-            echo "Signing enabled"
-          else
-            echo "No signing secrets; building unsigned DMG"
-          fi
-          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ] && [ -n "$MACOS_SIGN_IDENTITY" ]; then
-            export NOTARIZE=1
-            echo "Notarization enabled"
-          fi
-          if [ -n "$SPARKLE_PRIVATE_KEY" ] && [ -n "$MACOS_SIGN_IDENTITY" ]; then
-            export GENERATE_APPCAST=1
-            echo "Sparkle appcast signing enabled"
-          fi
-          scripts/package-dmg.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-dmg
-          path: |
-            MicaGoServer/micago-mac-companion/build/release/micaGO-Companion-${{ needs.meta.outputs.version }}-mac.dmg
-            MicaGoServer/micago-mac-companion/build/release/appcast.xml
-          if-no-files-found: error
-
   publish:
-    name: Publish GitHub Release
+    name: Create draft GitHub Release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [meta, android, ios, windows, linux, macos]
+    needs: [meta, android, ios, windows, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-      - name: Publish release
+      - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
           files: |
             dist/**/*
           fail_on_unmatched_files: false
