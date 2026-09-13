@@ -18,26 +18,31 @@
         <span>micaGO</span>
       </a>
       <nav class="site-nav" aria-label="Primary navigation">
-        <a href="#how">How it works</a>
-        <a href="#downloads">Downloads</a>
-        <a href="#faq">FAQ</a>
-        <a href="https://github.com/cinmou/MicaGo/blob/main/docs/index.md">Docs</a>
+        <a href="#how" data-i18n="nav.how">How it works</a>
+        <a href="#downloads" data-i18n="nav.downloads">Downloads</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
+        <a href="https://github.com/cinmou/MicaGo/blob/main/docs/index.md" data-i18n="nav.docs" data-i18n-href="href.docs">Docs</a>
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang="zh-Hans" aria-pressed="false" lang="zh-Hans">简</button>
+          <button type="button" data-lang="zh-Hant" aria-pressed="false" lang="zh-Hant">繁</button>
+        </div>
       </nav>
     </header>
 
     <main id="top">
       <section class="hero section">
         <div class="hero-copy">
-          <h1><span>Your Mac's iMessage,</span> <span>on your phone</span> <span>and PC.</span></h1>
-          <p class="hero-subtitle">
+          <h1 data-i18n="hero.title"><span>Your Mac's iMessage,</span> <span>on your phone</span> <span>and PC.</span></h1>
+          <p class="hero-subtitle" data-i18n="hero.subtitle">
             micaGO lets you read and reply to your iMessages from an Android phone or a Windows
             PC. It works like a remote control for the Messages app on your own Mac, so you
             need a Mac that stays switched on.
           </p>
           <div class="hero-actions" aria-label="Download and documentation links">
-            <a class="button button-primary" href="#downloads">Download</a>
-            <a class="button button-secondary" href="#how">How it works</a>
-            <a class="button button-ghost" href="https://github.com/cinmou/MicaGo">View source</a>
+            <a class="button button-primary" href="#downloads" data-i18n="hero.download">Download</a>
+            <a class="button button-secondary" href="#how" data-i18n="hero.how">How it works</a>
+            <a class="button button-ghost" href="https://github.com/cinmou/MicaGo" data-i18n="hero.source">View source</a>
           </div>
         </div>
         <div class="hero-visual logo-hero" aria-label="micaGO client and Mac Companion apps">
@@ -48,53 +53,53 @@
 
       <section class="trust-row" aria-label="micaGO in three sentences">
         <div>
-          <strong>It's a remote for your Mac</strong>
-          <span>Your Mac really sends and receives the messages. micaGO lets you do it from another device.</span>
+          <strong data-i18n="trust.1.title">It's a remote for your Mac</strong>
+          <span data-i18n="trust.1.body">Your Mac really sends and receives the messages. micaGO lets you do it from another device.</span>
         </div>
         <div>
-          <strong>No Mac, no micaGO</strong>
-          <span>You need your own Mac, switched on, with Messages signed in to your Apple ID.</span>
+          <strong data-i18n="trust.2.title">No Mac, no micaGO</strong>
+          <span data-i18n="trust.2.body">You need your own Mac, switched on, with Messages signed in to your Apple ID.</span>
         </div>
         <div>
-          <strong>No micaGO servers</strong>
-          <span>Messages travel between your devices and your Mac. We don't run a server that sees them.</span>
+          <strong data-i18n="trust.3.title">No micaGO servers</strong>
+          <span data-i18n="trust.3.body">Messages travel between your devices and your Mac. We don't run a server that sees them.</span>
         </div>
       </section>
 
       <section class="section split-section">
         <div class="section-copy">
-          <p class="eyebrow">Is this for me?</p>
-          <h2>Check this before you download.</h2>
-          <p>
+          <p class="eyebrow" data-i18n="fit.eyebrow">Is this for me?</p>
+          <h2 data-i18n="fit.title">Check this before you download.</h2>
+          <p data-i18n="fit.intro">
             People often guess micaGO is an app that gives Android phones iMessage on its own.
             It isn't. It only works together with a Mac you already have.
           </p>
         </div>
         <div class="feature-grid">
           <article class="feature-card">
-            <h3>Good fit: you own a Mac</h3>
-            <p>
+            <h3 data-i18n="fit.1.title">Good fit: you own a Mac</h3>
+            <p data-i18n="fit.1.body">
               A Mac at home or at work that is signed in to Messages and can stay on. That Mac
               is what actually talks to Apple.
             </p>
           </article>
           <article class="feature-card">
-            <h3>Good fit: you also use Android or Windows</h3>
-            <p>
+            <h3 data-i18n="fit.2.title">Good fit: you also use Android or Windows</h3>
+            <p data-i18n="fit.2.body">
               You want to keep up with your iMessage chats from an Android phone, tablet, or a
               Windows computer instead of walking back to the Mac.
             </p>
           </article>
           <article class="feature-card">
-            <h3>Not a fit: you have no Mac</h3>
-            <p>
+            <h3 data-i18n="fit.3.title">Not a fit: you have no Mac</h3>
+            <p data-i18n="fit.3.body">
               micaGO can't create an iMessage account or connect to Apple by itself. Without a
               Mac of your own, it won't work.
             </p>
           </article>
           <article class="feature-card">
-            <h3>Not a fit: the Mac is usually off</h3>
-            <p>
+            <h3 data-i18n="fit.4.title">Not a fit: the Mac is usually off</h3>
+            <p data-i18n="fit.4.body">
               Messages only come and go while the Mac is on and awake. If it sleeps or shuts
               down, micaGO waits until it's back.
             </p>
@@ -104,32 +109,32 @@
 
       <section id="features" class="section split-section">
         <div class="section-copy">
-          <p class="eyebrow">What you can do</p>
-          <h2>Everyday chatting, from another screen.</h2>
-          <p>
+          <p class="eyebrow" data-i18n="features.eyebrow">What you can do</p>
+          <h2 data-i18n="features.title">Everyday chatting, from another screen.</h2>
+          <p data-i18n="features.intro">
             Replies are sent by your Mac with your own Apple ID and phone number, exactly as if
             you had typed them on the Mac. Your friends see nothing different.
           </p>
         </div>
         <div class="feature-grid">
           <article class="feature-card">
-            <h3>Blue-bubble chats</h3>
-            <p>Read and reply to your iMessage conversations, including group chats.</p>
+            <h3 data-i18n="features.1.title">Blue-bubble chats</h3>
+            <p data-i18n="features.1.body">Read and reply to your iMessage conversations, including group chats.</p>
           </article>
           <article class="feature-card">
-            <h3>Photos, voice and reactions</h3>
-            <p>Send pictures and voice messages, reply to a message, and add reactions.</p>
+            <h3 data-i18n="features.2.title">Photos, voice and reactions</h3>
+            <p data-i18n="features.2.body">Send pictures and voice messages, reply to a message, and add reactions.</p>
           </article>
           <article class="feature-card">
-            <h3>Green-bubble texts</h3>
-            <p>
+            <h3 data-i18n="features.3.title">Green-bubble texts</h3>
+            <p data-i18n="features.3.body">
               Regular text messages (SMS) work too if your iPhone forwards them to your Mac
               (Text Message Forwarding in the iPhone settings).
             </p>
           </article>
           <article class="feature-card">
-            <h3>Away from home (optional)</h3>
-            <p>
+            <h3 data-i18n="features.4.title">Away from home (optional)</h3>
+            <p data-i18n="features.4.body">
               On the same Wi-Fi it just works. To use it anywhere, you can set up your own
               secure link to your Mac.
               <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Remote access guide</a>.
@@ -140,9 +145,9 @@
 
       <section class="showcase section" aria-labelledby="showcase-title">
         <div class="section-copy centered showcase-intro">
-          <p class="eyebrow">What it looks like</p>
-          <h2 id="showcase-title">A chat app on your devices, a control panel on your Mac.</h2>
-          <p>
+          <p class="eyebrow" data-i18n="showcase.eyebrow">What it looks like</p>
+          <h2 id="showcase-title" data-i18n="showcase.title">A chat app on your devices, a control panel on your Mac.</h2>
+          <p data-i18n="showcase.intro">
             You chat in the micaGO app. On the Mac, the Companion app runs quietly in the menu
             bar and shows whether everything is connected.
           </p>
@@ -152,8 +157,8 @@
           <div class="showcase-heading">
             <span class="platform">Android</span>
             <div>
-              <h3>Chat on your phone</h3>
-              <p>Your conversation list, message threads, and settings.</p>
+              <h3 data-i18n="showcase.android.title">Chat on your phone</h3>
+              <p data-i18n="showcase.android.body">Your conversation list, message threads, and settings.</p>
             </div>
           </div>
           <div class="screenshot-grid screenshot-grid-portrait">
@@ -165,10 +170,10 @@
 
         <div class="showcase-group">
           <div class="showcase-heading">
-            <span class="platform">Tablet</span>
+            <span class="platform" data-i18n="showcase.tablet.platform">Tablet</span>
             <div>
-              <h3>More room on a tablet</h3>
-              <p>See your conversation list and the open chat side by side.</p>
+              <h3 data-i18n="showcase.tablet.title">More room on a tablet</h3>
+              <p data-i18n="showcase.tablet.body">See your conversation list and the open chat side by side.</p>
             </div>
           </div>
           <div class="screenshot-grid screenshot-grid-landscape">
@@ -182,8 +187,8 @@
           <div class="showcase-heading">
             <span class="platform">macOS</span>
             <div>
-              <h3>The Companion on your Mac</h3>
-              <p>Shows the connection status and the QR code you scan to connect a device.</p>
+              <h3 data-i18n="showcase.mac.title">The Companion on your Mac</h3>
+              <p data-i18n="showcase.mac.body">Shows the connection status and the QR code you scan to connect a device.</p>
             </div>
           </div>
           <div class="screenshot-grid screenshot-grid-landscape">
@@ -196,14 +201,14 @@
 
       <section id="how" class="section steps-section">
         <div class="section-copy centered">
-          <p class="eyebrow">How it works</p>
-          <h2>Set up once, in three steps.</h2>
+          <p class="eyebrow" data-i18n="how.eyebrow">How it works</p>
+          <h2 data-i18n="how.title">Set up once, in three steps.</h2>
         </div>
         <div class="steps">
           <article>
             <span>1</span>
-            <h3>Set up your Mac</h3>
-            <p>
+            <h3 data-i18n="how.1.title">Set up your Mac</h3>
+            <p data-i18n="how.1.body">
               Install the micaGO Companion on the Mac that has Messages signed in. When it asks,
               allow Full Disk Access so it can see your messages.
               <a href="https://github.com/cinmou/MicaGo/blob/main/docs/getting-started.md">Mac setup guide</a>.
@@ -211,8 +216,8 @@
           </article>
           <article>
             <span>2</span>
-            <h3>Connect your phone or PC</h3>
-            <p>
+            <h3 data-i18n="how.2.title">Connect your phone or PC</h3>
+            <p data-i18n="how.2.body">
               Install micaGO on Android or Windows, then scan the QR code shown by the Companion.
               Being on the same Wi-Fi is the easiest way to start.
               <a href="https://github.com/cinmou/MicaGo/blob/main/docs/android-client-connection.md">Connection guide</a>.
@@ -220,28 +225,28 @@
           </article>
           <article>
             <span>3</span>
-            <h3>Start chatting</h3>
-            <p>Your conversations appear. Leave the Mac on and it keeps delivering messages both ways.</p>
+            <h3 data-i18n="how.3.title">Start chatting</h3>
+            <p data-i18n="how.3.body">Your conversations appear. Leave the Mac on and it keeps delivering messages both ways.</p>
           </article>
         </div>
       </section>
 
       <section id="privacy" class="privacy-section section">
         <div>
-          <p class="eyebrow">Privacy</p>
-          <h2>Your messages go between your devices and your Mac. Nowhere else.</h2>
+          <p class="eyebrow" data-i18n="privacy.eyebrow">Privacy</p>
+          <h2 data-i18n="privacy.title">Your messages go between your devices and your Mac. Nowhere else.</h2>
         </div>
         <div class="privacy-list">
-          <p>
+          <p data-i18n="privacy.1">
             There is no micaGO account and no micaGO cloud. We don't operate a server that stores
             or reads your conversations.
           </p>
-          <p>
+          <p data-i18n="privacy.2">
             Using micaGO away from home is optional. If you set it up, the link goes to your own
             Mac and is protected by a secret key only your devices know.
             <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Remote access guide</a>.
           </p>
-          <p>
+          <p data-i18n="privacy.3">
             Push notifications are optional too. If you turn them on, notifications are delivered
             by Google's push service through a Firebase project you create yourself.
             <a href="https://github.com/cinmou/MicaGo/blob/main/docs/notifications-setup.md">Notifications guide</a>.
@@ -251,9 +256,9 @@
 
       <section id="downloads" class="section downloads-section">
         <div class="section-copy centered">
-          <p class="eyebrow">Downloads</p>
-          <h2>Install the Mac part first, then your device.</h2>
-          <p>Every setup needs the Mac Companion. Then pick the app for the device you'll chat on.</p>
+          <p class="eyebrow" data-i18n="downloads.eyebrow">Downloads</p>
+          <h2 data-i18n="downloads.title">Install the Mac part first, then your device.</h2>
+          <p data-i18n="downloads.intro">Every setup needs the Mac Companion. Then pick the app for the device you'll chat on.</p>
         </div>
         <div class="download-grid">
           <article class="download-card">
@@ -262,31 +267,31 @@
               <span class="platform">macOS</span>
             </div>
             <h3>Mac Companion</h3>
-            <p>Required. Runs on your Mac (macOS 13 or newer) and connects your devices to Messages.</p>
-            <a id="download-dmg" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest">Download for Mac</a>
+            <p data-i18n="downloads.mac.body">Required. Runs on your Mac (macOS 13 or newer) and connects your devices to Messages.</p>
+            <a id="download-dmg" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest" data-i18n="downloads.mac.button">Download for Mac</a>
           </article>
           <article class="download-card">
             <div class="download-card-header">
               <img class="download-icon" src="assets/Client.png" alt="" />
               <span class="platform">Android</span>
             </div>
-            <h3>Android app</h3>
-            <p>For phones and tablets running Android 6.0 or newer.</p>
-            <a id="download-apk" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest">Download APK</a>
+            <h3 data-i18n="downloads.android.title">Android app</h3>
+            <p data-i18n="downloads.android.body">For phones and tablets running Android 6.0 or newer.</p>
+            <a id="download-apk" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest" data-i18n="downloads.android.button">Download APK</a>
           </article>
           <article class="download-card">
             <div class="download-card-header">
               <img class="download-icon download-icon-plain" src="assets/micaGO%20Windows.png" alt="" />
               <span class="platform">Windows</span>
             </div>
-            <h3>Windows app</h3>
-            <p>For 64-bit Windows 10 (version 1809) or newer. Windows 11 recommended.</p>
-            <a id="download-windows" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest">Download for Windows</a>
+            <h3 data-i18n="downloads.windows.title">Windows app</h3>
+            <p data-i18n="downloads.windows.body">For 64-bit Windows 10 (version 1809) or newer. Windows 11 recommended.</p>
+            <a id="download-windows" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest" data-i18n="downloads.windows.button">Download for Windows</a>
           </article>
         </div>
         <aside class="platform-note">
-          <h3>Good to know</h3>
-          <p>
+          <h3 data-i18n="note.title">Good to know</h3>
+          <p data-i18n="note.body">
             micaGO is beta software. Android is the most tested app; the Windows app is newer and
             still being polished. All downloads come from the project's GitHub releases page. See the
             <a href="https://github.com/cinmou/MicaGo/blob/main/docs/index.md">documentation</a>
@@ -297,43 +302,43 @@
 
       <section id="faq" class="section faq-section">
         <div class="section-copy">
-          <p class="eyebrow">FAQ</p>
-          <h2>Common questions.</h2>
+          <p class="eyebrow" data-i18n="faq.eyebrow">FAQ</p>
+          <h2 data-i18n="faq.title">Common questions.</h2>
         </div>
         <div class="faq-list">
           <details>
-            <summary>Can I get iMessage on Android without a Mac?</summary>
-            <p>No. micaGO needs your own Mac signed in to Messages. The Mac does the real work.</p>
+            <summary data-i18n="faq.1.q">Can I get iMessage on Android without a Mac?</summary>
+            <p data-i18n="faq.1.a">No. micaGO needs your own Mac signed in to Messages. The Mac does the real work.</p>
           </details>
           <details>
-            <summary>Does my Mac have to stay on?</summary>
-            <p>
+            <summary data-i18n="faq.2.q">Does my Mac have to stay on?</summary>
+            <p data-i18n="faq.2.a">
               Yes. While the Mac is asleep or off, nothing is sent or received. The Companion has a
               Keep Awake switch to stop the Mac from sleeping.
             </p>
           </details>
           <details>
-            <summary>Will my friends see a different number or name?</summary>
-            <p>No. Messages are sent by your Mac from your own Apple ID and number.</p>
+            <summary data-i18n="faq.3.q">Will my friends see a different number or name?</summary>
+            <p data-i18n="faq.3.a">No. Messages are sent by your Mac from your own Apple ID and number.</p>
           </details>
           <details>
-            <summary>Is micaGO made by Apple?</summary>
-            <p>No. micaGO is an independent open source project and is not affiliated with Apple.</p>
+            <summary data-i18n="faq.4.q">Is micaGO made by Apple?</summary>
+            <p data-i18n="faq.4.a">No. micaGO is an independent open source project and is not affiliated with Apple.</p>
           </details>
           <details>
-            <summary>Are my messages stored in a micaGO cloud?</summary>
-            <p>No. There is no micaGO cloud. Messages stay on your Mac and the devices you connect.</p>
+            <summary data-i18n="faq.5.q">Are my messages stored in a micaGO cloud?</summary>
+            <p data-i18n="faq.5.a">No. There is no micaGO cloud. Messages stay on your Mac and the devices you connect.</p>
           </details>
           <details>
-            <summary>Can I use it away from home?</summary>
-            <p>
+            <summary data-i18n="faq.6.q">Can I use it away from home?</summary>
+            <p data-i18n="faq.6.a">
               Yes, once you set up your own secure link to your Mac.
               <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Read the remote access guide</a>.
             </p>
           </details>
           <details>
-            <summary>Is it stable?</summary>
-            <p>It's beta software. It works day to day, but expect some rough edges.</p>
+            <summary data-i18n="faq.7.q">Is it stable?</summary>
+            <p data-i18n="faq.7.a">It's beta software. It works day to day, but expect some rough edges.</p>
           </details>
         </div>
       </section>
@@ -341,11 +346,273 @@
 
     <footer class="site-footer">
       <span>micaGO</span>
-      <span>Built with ♥️ for everyone.</span>
+      <span data-i18n="footer.love">Built with ♥️ for everyone.</span>
       <a href="https://github.com/cinmou/MicaGo">GitHub</a>
     </footer>
 
     <script>
+      // Page language: English lives in the markup; Chinese tables below replace
+      // [data-i18n] content. A choice made with the header switcher is stored;
+      // otherwise the browser's language list decides (zh-TW/HK/MO/Hant use
+      // Traditional Chinese, any other zh uses Simplified).
+      (function () {
+        var STORAGE_KEY = "micago.site.lang";
+        var DOCS = "https://github.com/cinmou/MicaGo/blob/main/docs/";
+        var L = {
+          "zh-Hans": {
+            "meta.title": "micaGO - 在安卓手机和 Windows 电脑上使用你 Mac 的 iMessage",
+            "meta.description": "micaGO 让你用安卓手机或 Windows 电脑，读取并回复你自己 Mac 上的 iMessage。真正收发消息的是你的 Mac，micaGO 是它的遥控器。",
+            "nav.how": "工作原理",
+            "nav.downloads": "下载",
+            "nav.faq": "常见问题",
+            "nav.docs": "文档",
+            "href.docs": DOCS + "index.zh-Hans.md",
+            "hero.title": "<span>你 Mac 上的 iMessage，</span> <span>手机和电脑上</span> <span>也能用。</span>",
+            "hero.subtitle": "micaGO 让你在安卓手机或 Windows 电脑上阅读和回复 iMessage。它就像你自己那台 Mac 上「信息」App 的遥控器，所以你需要一台一直开着的 Mac。",
+            "hero.download": "下载",
+            "hero.how": "工作原理",
+            "hero.source": "查看源代码",
+            "trust.1.title": "它是你 Mac 的遥控器",
+            "trust.1.body": "真正收发消息的是你的 Mac，micaGO 让你在另一台设备上操作。",
+            "trust.2.title": "没有 Mac 就用不了",
+            "trust.2.body": "你需要一台自己的 Mac，保持开机，并在「信息」里登录你的 Apple ID。",
+            "trust.3.title": "没有 micaGO 服务器",
+            "trust.3.body": "消息只在你的设备和你的 Mac 之间传递，我们没有任何能看到消息的服务器。",
+            "fit.eyebrow": "适合我吗？",
+            "fit.title": "下载前先看看这里。",
+            "fit.intro": "很多人以为 micaGO 能让安卓手机自己用上 iMessage。并不是，它必须配合你已经拥有的 Mac 一起用。",
+            "fit.1.title": "适合：你有一台 Mac",
+            "fit.1.body": "家里或公司有一台登录了「信息」、可以一直开着的 Mac。真正和 Apple 通信的就是这台 Mac。",
+            "fit.2.title": "适合：你也在用安卓或 Windows",
+            "fit.2.body": "你想在安卓手机、平板或 Windows 电脑上跟进 iMessage 聊天，不用每次都回到 Mac 前面。",
+            "fit.3.title": "不适合：你没有 Mac",
+            "fit.3.body": "micaGO 无法创建 iMessage 账号，也不能自己连接 Apple。没有自己的 Mac 就用不了。",
+            "fit.4.title": "不适合：Mac 经常关机",
+            "fit.4.body": "只有 Mac 开机且没有休眠时，消息才能收发。Mac 休眠或关机时，micaGO 会等它恢复。",
+            "features.eyebrow": "能做什么",
+            "features.title": "在另一块屏幕上日常聊天。",
+            "features.intro": "回复由你的 Mac 用你自己的 Apple ID 和手机号发出，和直接在 Mac 上打字完全一样，朋友那边看不出任何区别。",
+            "features.1.title": "蓝色气泡聊天",
+            "features.1.body": "阅读并回复 iMessage 对话，包括群聊。",
+            "features.2.title": "照片、语音和回应",
+            "features.2.body": "发送图片和语音消息，回复某条消息，添加回应表情。",
+            "features.3.title": "绿色气泡短信",
+            "features.3.body": "如果你的 iPhone 把短信转发到 Mac（iPhone 设置里的「短信转发」），普通短信也能收发。",
+            "features.4.title": "不在家时（可选）",
+            "features.4.body": "连着同一个 Wi-Fi 就能直接用。想在任何地方用，可以自己设置一条通往 Mac 的安全连接。<a href='" + DOCS + "remote-access-cloudflare.md'>远程访问指南（英文）</a>。",
+            "showcase.eyebrow": "长什么样",
+            "showcase.title": "设备上是聊天 App，Mac 上是控制面板。",
+            "showcase.intro": "你在 micaGO App 里聊天。Mac 上的 Companion 在菜单栏里安静运行，显示一切是否已连接。",
+            "showcase.android.title": "在手机上聊天",
+            "showcase.android.body": "会话列表、消息对话和设置。",
+            "showcase.tablet.platform": "平板",
+            "showcase.tablet.title": "平板上空间更大",
+            "showcase.tablet.body": "会话列表和打开的聊天并排显示。",
+            "showcase.mac.title": "Mac 上的 Companion",
+            "showcase.mac.body": "显示连接状态，以及用来连接设备的二维码。",
+            "how.eyebrow": "工作原理",
+            "how.title": "三步设置，一次搞定。",
+            "how.1.title": "设置你的 Mac",
+            "how.1.body": "在登录了「信息」的 Mac 上安装 micaGO Companion。系统询问时，允许「完全磁盘访问权限」，这样它才能看到你的消息。<a href='" + DOCS + "getting-started.zh-Hans.md'>Mac 设置指南</a>。",
+            "how.2.title": "连接手机或电脑",
+            "how.2.body": "在安卓或 Windows 上安装 micaGO，然后扫描 Companion 显示的二维码。连着同一个 Wi-Fi 最容易上手。<a href='" + DOCS + "android-client-connection.md'>连接指南（英文）</a>。",
+            "how.3.title": "开始聊天",
+            "how.3.body": "你的对话会出现在 App 里。让 Mac 保持开机，消息就会持续双向送达。",
+            "privacy.eyebrow": "隐私",
+            "privacy.title": "你的消息只在你的设备和你的 Mac 之间传递，不经过任何别的地方。",
+            "privacy.1": "没有 micaGO 账号，也没有 micaGO 云。我们不运营任何存储或读取你对话的服务器。",
+            "privacy.2": "在外面使用 micaGO 是可选的。如果你设置了，这条连接直通你自己的 Mac，并由只有你的设备知道的密钥保护。<a href='" + DOCS + "remote-access-cloudflare.md'>远程访问指南（英文）</a>。",
+            "privacy.3": "推送通知同样是可选的。开启后，通知会通过你自己创建的 Firebase 项目，由 Google 的推送服务送达。<a href='" + DOCS + "notifications-setup.md'>通知指南（英文）</a>。",
+            "downloads.eyebrow": "下载",
+            "downloads.title": "先装 Mac 端，再装你的设备。",
+            "downloads.intro": "无论怎么用都需要 Mac Companion，然后再选你用来聊天的设备对应的 App。",
+            "downloads.mac.body": "必需。运行在你的 Mac 上（macOS 13 或更新版本），把你的设备连接到「信息」。",
+            "downloads.mac.button": "下载 Mac 版",
+            "downloads.android.title": "安卓 App",
+            "downloads.android.body": "适用于 Android 6.0 或更新版本的手机和平板。",
+            "downloads.android.button": "下载 APK",
+            "downloads.windows.title": "Windows App",
+            "downloads.windows.body": "适用于 64 位 Windows 10（1809 版）或更新版本，推荐使用 Windows 11。",
+            "downloads.windows.button": "下载 Windows 版",
+            "note.title": "温馨提示",
+            "note.body": "micaGO 目前是测试版软件。安卓 App 测试得最充分；Windows App 较新，仍在打磨中。所有下载都来自项目的 GitHub 发布页。分步帮助请看<a href='" + DOCS + "index.zh-Hans.md'>使用文档</a>。",
+            "faq.eyebrow": "常见问题",
+            "faq.title": "常见问题。",
+            "faq.1.q": "没有 Mac 能在安卓上用 iMessage 吗？",
+            "faq.1.a": "不能。micaGO 需要你自己那台登录了「信息」的 Mac，真正干活的是 Mac。",
+            "faq.2.q": "Mac 必须一直开着吗？",
+            "faq.2.a": "是的。Mac 休眠或关机时，什么都收发不了。Companion 里有「保持唤醒」开关，可以防止 Mac 休眠。",
+            "faq.3.q": "朋友会看到不同的号码或名字吗？",
+            "faq.3.a": "不会。消息由你的 Mac 用你自己的 Apple ID 和号码发出。",
+            "faq.4.q": "micaGO 是 Apple 做的吗？",
+            "faq.4.a": "不是。micaGO 是独立的开源项目，与 Apple 没有关联。",
+            "faq.5.q": "我的消息会存在 micaGO 云端吗？",
+            "faq.5.a": "不会。根本没有 micaGO 云，消息只保存在你的 Mac 和你连接的设备上。",
+            "faq.6.q": "不在家时能用吗？",
+            "faq.6.a": "可以，只要你设置了一条通往 Mac 的安全连接。<a href='" + DOCS + "remote-access-cloudflare.md'>阅读远程访问指南（英文）</a>。",
+            "faq.7.q": "它稳定吗？",
+            "faq.7.a": "这是测试版软件，日常可以用，但难免有些小毛病。",
+            "footer.love": "用 ♥️ 为每个人打造。"
+          },
+          "zh-Hant": {
+            "meta.title": "micaGO - 在 Android 手機和 Windows 電腦上使用你 Mac 的 iMessage",
+            "meta.description": "micaGO 讓你用 Android 手機或 Windows 電腦，讀取並回覆你自己 Mac 上的 iMessage。真正收發訊息的是你的 Mac，micaGO 是它的遙控器。",
+            "nav.how": "運作方式",
+            "nav.downloads": "下載",
+            "nav.faq": "常見問題",
+            "nav.docs": "文件",
+            "href.docs": DOCS + "index.zh-Hant.md",
+            "hero.title": "<span>你 Mac 上的 iMessage，</span> <span>手機和電腦上</span> <span>也能用。</span>",
+            "hero.subtitle": "micaGO 讓你在 Android 手機或 Windows 電腦上閱讀並回覆 iMessage。它就像你自己那台 Mac 上「訊息」App 的遙控器，所以你需要一台一直開著的 Mac。",
+            "hero.download": "下載",
+            "hero.how": "運作方式",
+            "hero.source": "檢視原始碼",
+            "trust.1.title": "它是你 Mac 的遙控器",
+            "trust.1.body": "真正收發訊息的是你的 Mac，micaGO 讓你在另一台裝置上操作。",
+            "trust.2.title": "沒有 Mac 就不能用",
+            "trust.2.body": "你需要一台自己的 Mac，保持開機，並在「訊息」中登入你的 Apple ID。",
+            "trust.3.title": "沒有 micaGO 伺服器",
+            "trust.3.body": "訊息只在你的裝置和你的 Mac 之間傳遞，我們沒有任何能看到訊息的伺服器。",
+            "fit.eyebrow": "適合我嗎？",
+            "fit.title": "下載前先看看這裡。",
+            "fit.intro": "很多人以為 micaGO 能讓 Android 手機自己用上 iMessage。並不是，它必須搭配你已經擁有的 Mac 一起使用。",
+            "fit.1.title": "適合：你有一台 Mac",
+            "fit.1.body": "家裡或公司有一台登入了「訊息」、可以一直開著的 Mac。真正和 Apple 通訊的就是這台 Mac。",
+            "fit.2.title": "適合：你也在用 Android 或 Windows",
+            "fit.2.body": "你想在 Android 手機、平板或 Windows 電腦上跟進 iMessage 聊天，不必每次都回到 Mac 前面。",
+            "fit.3.title": "不適合：你沒有 Mac",
+            "fit.3.body": "micaGO 無法建立 iMessage 帳號，也不能自己連線到 Apple。沒有自己的 Mac 就無法使用。",
+            "fit.4.title": "不適合：Mac 經常關機",
+            "fit.4.body": "只有 Mac 開機且沒有睡眠時，訊息才能收發。Mac 睡眠或關機時，micaGO 會等它恢復。",
+            "features.eyebrow": "能做什麼",
+            "features.title": "在另一個螢幕上日常聊天。",
+            "features.intro": "回覆由你的 Mac 用你自己的 Apple ID 和電話號碼送出，和直接在 Mac 上打字完全一樣，朋友那邊看不出任何差別。",
+            "features.1.title": "藍色泡泡聊天",
+            "features.1.body": "閱讀並回覆 iMessage 對話，包括群組聊天。",
+            "features.2.title": "照片、語音和回應",
+            "features.2.body": "傳送圖片和語音訊息，回覆某則訊息，加上回應。",
+            "features.3.title": "綠色泡泡簡訊",
+            "features.3.body": "如果你的 iPhone 把簡訊轉寄到 Mac（iPhone 設定中的「簡訊轉寄」），一般簡訊也能收發。",
+            "features.4.title": "不在家時（選用）",
+            "features.4.body": "連著同一個 Wi-Fi 就能直接使用。想在任何地方使用，可以自己設定一條通往 Mac 的安全連線。<a href='" + DOCS + "remote-access-cloudflare.md'>遠端存取指南（英文）</a>。",
+            "showcase.eyebrow": "長什麼樣子",
+            "showcase.title": "裝置上是聊天 App，Mac 上是控制面板。",
+            "showcase.intro": "你在 micaGO App 裡聊天。Mac 上的 Companion 在選單列裡安靜執行，顯示一切是否已連線。",
+            "showcase.android.title": "在手機上聊天",
+            "showcase.android.body": "對話列表、訊息對話和設定。",
+            "showcase.tablet.platform": "平板",
+            "showcase.tablet.title": "平板上空間更大",
+            "showcase.tablet.body": "對話列表和開啟的聊天並排顯示。",
+            "showcase.mac.title": "Mac 上的 Companion",
+            "showcase.mac.body": "顯示連線狀態，以及用來連接裝置的 QR Code。",
+            "how.eyebrow": "運作方式",
+            "how.title": "三個步驟，設定一次就好。",
+            "how.1.title": "設定你的 Mac",
+            "how.1.body": "在登入了「訊息」的 Mac 上安裝 micaGO Companion。系統詢問時，允許「完整磁碟取用權限」，這樣它才能看到你的訊息。<a href='" + DOCS + "getting-started.zh-Hant.md'>Mac 設定指南</a>。",
+            "how.2.title": "連接手機或電腦",
+            "how.2.body": "在 Android 或 Windows 上安裝 micaGO，然後掃描 Companion 顯示的 QR Code。連著同一個 Wi-Fi 最容易上手。<a href='" + DOCS + "android-client-connection.md'>連線指南（英文）</a>。",
+            "how.3.title": "開始聊天",
+            "how.3.body": "你的對話會出現在 App 裡。讓 Mac 保持開機，訊息就會持續雙向送達。",
+            "privacy.eyebrow": "隱私",
+            "privacy.title": "你的訊息只在你的裝置和你的 Mac 之間傳遞，不經過其他地方。",
+            "privacy.1": "沒有 micaGO 帳號，也沒有 micaGO 雲端。我們不經營任何儲存或讀取你對話的伺服器。",
+            "privacy.2": "在外面使用 micaGO 是選用的。如果你設定了，這條連線直通你自己的 Mac，並由只有你的裝置知道的金鑰保護。<a href='" + DOCS + "remote-access-cloudflare.md'>遠端存取指南（英文）</a>。",
+            "privacy.3": "推播通知同樣是選用的。開啟後，通知會透過你自己建立的 Firebase 專案，由 Google 的推播服務送達。<a href='" + DOCS + "notifications-setup.md'>通知指南（英文）</a>。",
+            "downloads.eyebrow": "下載",
+            "downloads.title": "先裝 Mac 端，再裝你的裝置。",
+            "downloads.intro": "不管怎麼用都需要 Mac Companion，然後再選你用來聊天的裝置所對應的 App。",
+            "downloads.mac.body": "必要。在你的 Mac 上執行（macOS 13 或更新版本），把你的裝置連接到「訊息」。",
+            "downloads.mac.button": "下載 Mac 版",
+            "downloads.android.title": "Android App",
+            "downloads.android.body": "適用於 Android 6.0 或更新版本的手機和平板。",
+            "downloads.android.button": "下載 APK",
+            "downloads.windows.title": "Windows App",
+            "downloads.windows.body": "適用於 64 位元 Windows 10（1809 版）或更新版本，建議使用 Windows 11。",
+            "downloads.windows.button": "下載 Windows 版",
+            "note.title": "小提醒",
+            "note.body": "micaGO 目前是測試版軟體。Android App 測試得最完整；Windows App 較新，仍在持續打磨。所有下載都來自專案的 GitHub 發行頁面。逐步說明請看<a href='" + DOCS + "index.zh-Hant.md'>使用者文件</a>。",
+            "faq.eyebrow": "常見問題",
+            "faq.title": "常見問題。",
+            "faq.1.q": "沒有 Mac 能在 Android 上用 iMessage 嗎？",
+            "faq.1.a": "不行。micaGO 需要你自己那台登入了「訊息」的 Mac，真正做事的是 Mac。",
+            "faq.2.q": "Mac 必須一直開著嗎？",
+            "faq.2.a": "是的。Mac 睡眠或關機時，什麼都收發不了。Companion 裡有「保持喚醒」開關，可以防止 Mac 睡眠。",
+            "faq.3.q": "朋友會看到不同的號碼或名字嗎？",
+            "faq.3.a": "不會。訊息由你的 Mac 用你自己的 Apple ID 和號碼送出。",
+            "faq.4.q": "micaGO 是 Apple 做的嗎？",
+            "faq.4.a": "不是。micaGO 是獨立的開源專案，與 Apple 沒有關聯。",
+            "faq.5.q": "我的訊息會存在 micaGO 雲端嗎？",
+            "faq.5.a": "不會。根本沒有 micaGO 雲端，訊息只保存在你的 Mac 和你連接的裝置上。",
+            "faq.6.q": "不在家時能用嗎？",
+            "faq.6.a": "可以，只要你設定了一條通往 Mac 的安全連線。<a href='" + DOCS + "remote-access-cloudflare.md'>閱讀遠端存取指南（英文）</a>。",
+            "faq.7.q": "它穩定嗎？",
+            "faq.7.a": "這是測試版軟體，日常可以使用，但難免有些小問題。",
+            "footer.love": "用 ♥️ 為每個人打造。"
+          }
+        };
+
+        var nodes = document.querySelectorAll("[data-i18n]");
+        var hrefNodes = document.querySelectorAll("[data-i18n-href]");
+        var buttons = document.querySelectorAll(".lang-switch button[data-lang]");
+        var meta = document.querySelector('meta[name="description"]');
+        var english = {
+          "meta.title": document.title,
+          "meta.description": meta ? meta.getAttribute("content") : ""
+        };
+        var i;
+        for (i = 0; i < nodes.length; i++) {
+          english[nodes[i].getAttribute("data-i18n")] = nodes[i].innerHTML;
+        }
+        for (i = 0; i < hrefNodes.length; i++) {
+          english[hrefNodes[i].getAttribute("data-i18n-href")] = hrefNodes[i].getAttribute("href");
+        }
+
+        function text(lang, key) {
+          var table = L[lang];
+          return table && Object.prototype.hasOwnProperty.call(table, key) ? table[key] : english[key];
+        }
+
+        function detect() {
+          try {
+            var saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === "en" || L[saved]) return saved;
+          } catch (e) { /* storage unavailable: fall back to the browser language */ }
+          var langs = navigator.languages && navigator.languages.length
+            ? navigator.languages
+            : [navigator.language || "en"];
+          for (var j = 0; j < langs.length; j++) {
+            var tag = String(langs[j]).toLowerCase();
+            if (tag.indexOf("zh") === 0) return /hant|-tw|-hk|-mo/.test(tag) ? "zh-Hant" : "zh-Hans";
+            if (tag.indexOf("en") === 0) return "en";
+          }
+          return "en";
+        }
+
+        function apply(lang) {
+          for (i = 0; i < nodes.length; i++) {
+            nodes[i].innerHTML = text(lang, nodes[i].getAttribute("data-i18n"));
+          }
+          for (i = 0; i < hrefNodes.length; i++) {
+            hrefNodes[i].setAttribute("href", text(lang, hrefNodes[i].getAttribute("data-i18n-href")));
+          }
+          document.title = text(lang, "meta.title");
+          if (meta) meta.setAttribute("content", text(lang, "meta.description"));
+          document.documentElement.lang = lang;
+          for (i = 0; i < buttons.length; i++) {
+            buttons[i].setAttribute("aria-pressed", String(buttons[i].getAttribute("data-lang") === lang));
+          }
+        }
+
+        for (i = 0; i < buttons.length; i++) {
+          buttons[i].addEventListener("click", function () {
+            var lang = this.getAttribute("data-lang");
+            try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) { /* not persisted */ }
+            apply(lang);
+          });
+        }
+        apply(detect());
+      })();
+
       // Resolve direct download URLs for the latest release assets. Asset names
       // are versioned, so the stable /releases/latest/download/<name> shortcut
       // can't be hardcoded; ask the GitHub API instead. On any failure (offline,

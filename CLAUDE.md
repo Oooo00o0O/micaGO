@@ -21,6 +21,40 @@ Four components:
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
 
+## Route card + artifacts-only CI + bilingual site (C84)
+
+- **Settings route card** (`_RouteSwitcher`, `settings_screen.dart`): no
+  "Automatic" row and no LAN/Public prefixes. Each route shows its full base URL
+  plus availability and latency from `AppController.routeProbes` (every
+  `_probeCandidate` records a `RouteProbe`; the card calls `probeAllRoutes()`
+  on open). The radio only marks a *preferred* route (`toggleable`, so tapping
+  it again returns to automatic), and each change shows a SnackBar (prefer →
+  "优先使用这条，连不上时会自动换线路", clear → "已恢复自动选择线路"). The card's
+  last line is the live status from the pure `routeConnectionState`
+  (connected · URL · ms / connecting / can't reach, retrying), rebuilt from
+  `app.ws` + `connectionProblemConfirmed`. Test: `route_status_test.dart`.
+- **CI builds artifacts only.** Tag pushes and manual runs upload artifacts; the
+  `publish` job is gone and releases are created by hand. Names follow the
+  0.68.0 release: `micaGO-<v>-android-release.apk`,
+  `micaGO-<v>-Windows-release.zip`, `micaGO-<v>-iOS-release-unsigned.ipa`,
+  `micaGO-<v>-Linux-release.tar.gz`. macOS stays
+  `micaGO-Companion-<v>-mac.dmg`, which the Sparkle appcast URL depends on.
+- **Website languages** (`docs/index.html`): English stays in the markup with
+  `data-i18n` keys; an inline script holds the zh-Hans/zh-Hant tables and follows
+  `navigator.languages` (zh-TW/HK/MO/Hant → Traditional) unless the header
+  EN/简/繁 switcher stored a choice (`localStorage` `micago.site.lang`). Doc links
+  go to the localized docs where they exist (index, getting-started) and are
+  marked 英文 otherwise.
+
+## Hidden-items copy placement (C83, client-only)
+
+- The Settings "Hidden items" card no longer shows the `prefs.description`
+  explanation: `ChatPreferenceStatus(showDescription: false)` renders nothing
+  unless there is something to act on (sync error, conflicts, legacy import,
+  pending changes). On the Hidden contacts page the status moved from a pinned
+  `header` to a `footer` that is the last item of the scrolling list (below the
+  empty state when nothing is hidden). The Hidden messages page never had copy.
+
 ## 0.78.0 Muscovite: packaging on macOS 27, CI trim, plain-language site (C82)
 
 - **Version 0.78.0 (+78), codename Muscovite** across pubspec/`kAppVersion`,
@@ -56,13 +90,15 @@ Four components:
   signing, notarization and the Sparkle appcast stay on the local Mac, so the
   Developer ID certificate and Sparkle key never live in GitHub. Added a
   `windows` job for the WinUI app (`setup-dotnet` 10.0.x → Core contract tests →
-  `package-release-x64.ps1` → `micaGO-<version>-windows-x64.zip`; its first run
-  succeeded). Tag builds create a **draft** release: attach the local notarized
-  DMG + `appcast.xml`, then publish. Flutter is pinned to 3.44.3 and Android
+  `package-release-x64.ps1` → a Windows zip; its first run succeeded). ~~Tag
+  builds create a draft release~~ — superseded by C84 (artifacts only, releases
+  made by hand). Flutter is pinned to 3.44.3 and Android
   uses Java 21 to match local builds. Android CI had failed only because the
   four `ANDROID_KEY*` secrets were never configured; manual runs without them
-  now analyze/test and skip the APK. The site links the first asset named
-  `*windows*.exe` (preferred) or `*windows*.zip`.
+  now analyze/test and skip the APK. The iOS job runs on `macos-26`: the app
+  icon is an Icon Composer `MicaGoC.icon`, which only Xcode 26+ compiles, so
+  macos-15 (Xcode 16) failed with "no app icon set named MicaGoC". The site
+  links the first asset named `*windows*.exe` (preferred) or `*windows*.zip`.
 - **Website** (`docs/index.html`) rewritten in plain language around the common
   misunderstanding ("a remote control for your own Mac — no Mac, no micaGO"),
   with an "Is this for me?" section, a Windows download card (`.download-grid`

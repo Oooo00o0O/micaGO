@@ -20,6 +20,36 @@ class ConnectionCandidate {
   String toString() => '$label(base=$baseUrl, ws=$wsUrl)';
 }
 
+/// The latest reachability check of one route, shown in the Settings route card.
+class RouteProbe {
+  final bool reachable;
+  final Duration? latency;
+  final DateTime checkedAt;
+
+  const RouteProbe({
+    required this.reachable,
+    this.latency,
+    required this.checkedAt,
+  });
+}
+
+enum RouteConnectionState { connected, connecting, unreachable }
+
+/// What the route card's status line reports. A confirmed connection problem
+/// wins; otherwise the app is connected only once a route is active and the
+/// realtime socket is up, and is still connecting in every other case.
+RouteConnectionState routeConnectionState({
+  required bool hasActiveRoute,
+  required bool realtimeConnected,
+  required bool problemConfirmed,
+}) {
+  if (problemConfirmed) return RouteConnectionState.unreachable;
+  if (hasActiveRoute && realtimeConnected) {
+    return RouteConnectionState.connected;
+  }
+  return RouteConnectionState.connecting;
+}
+
 List<ConnectionCandidate> connectionCandidatesForProfile(
   ConnectionProfile profile,
 ) {

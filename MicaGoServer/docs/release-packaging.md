@@ -114,7 +114,7 @@ MicaGoFlutterClient/build/app/outputs/bundle/release/app-release.aab
 The Windows client is the native WinUI app in `MicaGoWindowsClient`. The release
 workflow's `windows` job builds it on `windows-latest` (.NET 10 via
 `actions/setup-dotnet`), runs the Core contract tests, and uploads
-`micaGO-<version>-windows-x64.zip`. To package locally on a Windows machine:
+`micaGO-<version>-Windows-release.zip`. To package locally on a Windows machine:
 
 ```powershell
 .\MicaGoWindowsClient\scripts\package-release-x64.ps1
@@ -141,17 +141,22 @@ git push origin v0.78.0
 
 The workflow builds:
 
-- Flutter Android release APK. It needs the `ANDROID_KEYSTORE_BASE64`,
+- Flutter Android release APK (`micaGO-<version>-android-release.apk`). It needs the `ANDROID_KEYSTORE_BASE64`,
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`
   repository secrets; tag builds fail without them, manual runs only analyze
   and test.
-- Windows x64 zip of the WinUI client.
-- Unsigned iOS IPA and an experimental Linux tarball.
-- A **draft** GitHub Release when triggered by a tag.
+- Windows x64 zip of the WinUI client (`micaGO-<version>-Windows-release.zip`).
+- Unsigned iOS IPA (`micaGO-<version>-iOS-release-unsigned.ipa`) and an
+  experimental Linux tarball (`micaGO-<version>-Linux-release.tar.gz`).
+
+It only uploads these as workflow-run artifacts — it never creates or publishes
+a GitHub Release. Download them from the run page and create the release by
+hand.
 
 The macOS Companion is not built in CI. Sign, notarize and generate
-`appcast.xml` locally (see "Mac Companion DMG"), attach the DMG and
-`appcast.xml` to the draft release, then publish it. The Companion's in-app
+`appcast.xml` locally (see "Mac Companion DMG"), attach the DMG
+(`micaGO-Companion-<version>-mac.dmg`) and `appcast.xml` to the release
+together with the CI artifacts, then publish it. The Companion's in-app
 updater reads
 `https://github.com/cinmou/MicaGo/releases/latest/download/appcast.xml`, so the
 release must not be published without that appcast.

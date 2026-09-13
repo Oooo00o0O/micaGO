@@ -167,6 +167,7 @@ class AppController extends ChangeNotifier {
   ApiClient? _api;
   ServerUrls? _serverUrls;
   ConnectionCandidate? _activeCandidate;
+  final Map<String, RouteProbe> _routeProbes = {};
   final List<String> _connectionLog = <String>[];
   bool _bootstrapped = false;
   DateTime? _lastCatchUpSyncAt;
@@ -359,6 +360,9 @@ class AppController extends ChangeNotifier {
   ApiClient? get api => _api;
   ServerUrls? get serverUrls => _serverUrls;
   ConnectionCandidate? get activeCandidate => _activeCandidate;
+
+  /// Latest reachability check per route base URL.
+  Map<String, RouteProbe> get routeProbes => Map.unmodifiable(_routeProbes);
   List<ConnectionCandidate> get connectionCandidates =>
       _profile == null ? const [] : connectionCandidatesForProfile(_profile!);
   List<String> get connectionLog => List.unmodifiable(_connectionLog);
@@ -639,6 +643,30 @@ class AppController extends ChangeNotifier {
     await selectReachableCandidate(reason: 'manual-route');
   }
 
+  /// Checks every route in parallel so Settings can show availability and
+  /// latency. Does not change the active route.
+  Future<void> probeAllRoutes() async {
+    final profile = _profile;
+    if (profile == null) return;
+    await Future.wait([
+      for (final candidate in connectionCandidatesForProfile(profile))
+        _probeCandidate(profile, candidate),
+    ]);
+  }
+
+  void _recordRouteProbe(
+    ConnectionCandidate candidate, {
+    required bool reachable,
+    Duration? latency,
+  }) {
+    _routeProbes[candidate.baseUrl] = RouteProbe(
+      reachable: reachable,
+      latency: latency,
+      checkedAt: DateTime.now(),
+    );
+    notifyListeners();
+  }
+
   /// Opens the realtime WebSocket using the active profile.
   void connectWebSocket() {
     final profile = _profile;
@@ -827,14 +855,17 @@ class AppController extends ChangeNotifier {
           '${candidate.label} health=true auth=true '
           '${elapsed.elapsedMilliseconds}ms',
         );
+        _recordRouteProbe(candidate, reachable: true, latency: elapsed.elapsed);
         return _CandidateProbeResult.ok(candidate, elapsed.elapsed);
       }
       elapsed.stop();
       _logConnectionSelection('${candidate.label} health=false');
+      _recordRouteProbe(candidate, reachable: false);
       return _CandidateProbeResult.failed(candidate, elapsed.elapsed);
     } catch (error) {
       elapsed.stop();
       _logConnectionSelection('${candidate.label} failed: $error');
+      _recordRouteProbe(candidate, reachable: false);
       return _CandidateProbeResult.failed(candidate, elapsed.elapsed);
     } finally {
       client.close();

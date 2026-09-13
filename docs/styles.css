@@ -749,3 +749,54 @@ h3 {
     align-items: flex-start;
   }
 }
+
+.lang-switch {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 6px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.lang-switch button {
+  padding: 6px 11px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lang-switch button:hover {
+  color: var(--ink-deep);
+}
+
+.lang-switch button[aria-pressed="true"] {
+  background: var(--canvas);
+  color: var(--ink-deep);
+  box-shadow: 0 1px 3px rgba(10, 19, 23, 0.12);
+}
+
+@media (max-width: 640px) {
+  .site-nav .lang-switch {
+    grid-column: 1 / -1;
+    justify-self: center;
+    margin-left: 0;
+  }
+}
+
+/* Chinese headline: keep each phrase on its own line instead of breaking
+   between characters mid-phrase; a phrase still wraps inside itself if the
+   screen is narrower than it. */
+:lang(zh) h1 {
+  font-size: clamp(40px, 6.4vw, 76px);
+  line-height: 1.12;
+}
+
+:lang(zh) h1 span {
+  display: inline-block;
+}

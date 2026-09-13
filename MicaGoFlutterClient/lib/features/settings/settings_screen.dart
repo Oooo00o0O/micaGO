@@ -14,6 +14,7 @@ import '../../app/router.dart';
 import '../../core/app_controller.dart';
 import '../../core/network/notification_display.dart';
 import '../../core/network/update_check.dart';
+import '../../core/network/websocket_client.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/models/connection_profile.dart';
 import '../../core/network/connection_candidate.dart';
@@ -282,11 +283,11 @@ class _TwoActionRow extends StatelessWidget {
   }
 }
 
-/// C26: when the server advertises more than one route (multiple LAN interfaces,
-/// or LAN + Public), let the user pick which one to use. "Automatic" keeps the
-/// LAN-first behaviour; picking a specific route pins it (persisted) and the app
-/// reconnects through it.
-class _RouteSwitcher extends StatelessWidget {
+/// C84: every advertised route with its full address, availability and
+/// latency. Selection is automatic; picking a route only makes it preferred
+/// (the others stay as fallbacks) and tapping it again returns to automatic.
+/// The last line states what the connection is doing right now.
+class _RouteSwitcher extends StatefulWidget {
   final AppController app;
   final ConnectionProfile profile;
 
@@ -300,64 +301,158 @@ class _RouteSwitcher extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  State<_RouteSwitcher> createState() => _RouteSwitcherState();
+}
+
+class _RouteSwitcherState extends State<_RouteSwitcher> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(widget.app.probeAllRoutes());
+  }
+
+  void _select(String? baseUrl) {
     final strings = MicaLocalizations.of(context);
-    final candidates = app.connectionCandidates;
-    final activeBase = app.activeCandidate?.baseUrl;
-    final pinned = profile.selectedBaseUrl;
-    final scheme = Theme.of(context).colorScheme;
-
-    String labelFor(ConnectionCandidate c) {
-      final host = Uri.tryParse(c.baseUrl)?.host ?? c.baseUrl;
-      return '${c.label} · $host';
-    }
-
-    return Card(
-      child: RadioGroup<String?>(
-        groupValue: pinned,
-        onChanged: (v) => app.selectRoute(v),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                strings.t('settings.route'),
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+    unawaited(widget.app.selectRoute(baseUrl));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            strings.t(
+              baseUrl == null
+                  ? 'settings.routeAutoToast'
+                  : 'settings.routePreferredToast',
             ),
-            RadioListTile<String?>(
-              value: null,
-              title: Text(strings.t('settings.autoRoute')),
-              subtitle: Text(strings.t('settings.autoRouteBody')),
-              dense: true,
-            ),
-            for (final c in candidates)
-              RadioListTile<String?>(
-                value: c.baseUrl,
-                title: Text(labelFor(c)),
-                subtitle: c.baseUrl == activeBase
-                    ? Text(
-                        strings.t('settings.connected'),
-                        style: TextStyle(color: scheme.primary),
-                      )
-                    : Text(c.baseUrl),
-                secondary: c.baseUrl == activeBase
-                    ? Icon(Icons.check_circle, color: scheme.primary, size: 20)
-                    : null,
-                dense: true,
-              ),
-            const Divider(height: 1),
-            ListTile(
-              leading: _leadingIcon(Icons.edit_outlined),
-              title: Text(strings.t('settings.editConnection')),
-              subtitle: Text(strings.t('settings.editConnectionBody')),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: onEdit,
-            ),
-          ],
+          ),
         ),
-      ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = widget.app;
+    final strings = MicaLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        app,
+        app.ws,
+        app.connectionProblemConfirmed,
+      ]),
+      builder: (context, _) {
+        final probes = app.routeProbes;
+        final active = app.activeCandidate;
+
+        Widget availability(ConnectionCandidate c) {
+          final probe = probes[c.baseUrl];
+          if (probe == null) return Text(strings.t('settings.routeChecking'));
+          if (!probe.reachable) {
+            return Text(
+              strings.t('settings.routeUnreachable'),
+              style: TextStyle(color: scheme.error),
+            );
+          }
+          final ms = probe.latency?.inMilliseconds;
+          final label = strings.t('settings.routeReachable');
+          return Text(
+            ms == null ? label : '$label · $ms ms',
+            style: TextStyle(color: scheme.primary),
+          );
+        }
+
+        final state = routeConnectionState(
+          hasActiveRoute: active != null,
+          realtimeConnected: app.ws.status == WsStatus.connected,
+          problemConfirmed: app.connectionProblemConfirmed.value,
+        );
+        final activeMs = active == null
+            ? null
+            : probes[active.baseUrl]?.latency?.inMilliseconds;
+        final (
+          IconData statusIcon,
+          Color statusColor,
+          String statusText,
+        ) = switch (state) {
+          RouteConnectionState.connected => (
+            Icons.check_circle,
+            scheme.primary,
+            [
+              strings
+                  .t('settings.routeStatusConnected')
+                  .replaceAll('{url}', active!.baseUrl),
+              if (activeMs != null) '$activeMs ms',
+            ].join(' · '),
+          ),
+          RouteConnectionState.connecting => (
+            Icons.sync,
+            scheme.onSurfaceVariant,
+            strings.t('settings.routeStatusConnecting'),
+          ),
+          RouteConnectionState.unreachable => (
+            Icons.error_outline,
+            scheme.error,
+            strings.t('settings.routeStatusRetrying'),
+          ),
+        };
+
+        return Card(
+          child: RadioGroup<String?>(
+            groupValue: widget.profile.selectedBaseUrl,
+            onChanged: _select,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    strings.t('settings.route'),
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+                for (final c in app.connectionCandidates)
+                  RadioListTile<String?>(
+                    value: c.baseUrl,
+                    toggleable: true,
+                    title: Text(c.baseUrl),
+                    subtitle: availability(c),
+                    dense: true,
+                  ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: _leadingIcon(Icons.edit_outlined),
+                  title: Text(strings.t('settings.editConnection')),
+                  subtitle: Text(strings.t('settings.editConnectionBody')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: widget.onEdit,
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                  child: Row(
+                    children: [
+                      Icon(statusIcon, size: 18, color: statusColor),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          statusText,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: state == RouteConnectionState.connected
+                                ? scheme.onSurface
+                                : statusColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
