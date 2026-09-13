@@ -14,6 +14,7 @@ Four components:
 ## Important rules
 
 - Current product version is `0.71.0` across Flutter (`+71`), Go, macOS Companion, and Windows; version-comparison fixtures and historical release notes retain their original versions.
+- **Release workflow:** `.github/workflows/release.yml` builds Android APK, unsigned iOS IPA, the native WinUI Windows x64 archive (through `package-release-x64.ps1`), Flutter Linux x64, and the macOS Companion DMG. Manual runs upload Actions artifacts; matching `v*.*.*` tags publish all artifacts together with SHA-256 checksums. Keep component versions aligned before tagging.
 
 - **Never commit unless explicitly asked.** Branch first if on `main`.
 - **Never log, commit, or expose** bearer tokens, push tokens, or service-account paths. The Companion redacts tokens in captured server stdout (`BackendController.redact`).

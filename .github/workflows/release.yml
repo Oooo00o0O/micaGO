@@ -6,7 +6,8 @@
 #                                 (no release is published) — use it to test the pipeline.
 #
 # Artifacts:
-#   Android APK, unsigned iOS IPA, Windows zip, Linux tar.gz, macOS DMG.
+#   Android APK, unsigned iOS IPA, native WinUI Windows zip, Flutter Linux
+#   tar.gz, and macOS DMG.
 #
 # macOS signing/notarization is OPTIONAL: with no secrets configured the DMG is
 # built unsigned (same as before). To sign + notarize, add these repo secrets:
@@ -23,8 +24,8 @@
 #   ANDROID_KEY_ALIAS          key alias
 #   ANDROID_KEY_PASSWORD       private-key password
 #
-# The version comes from MicaGoFlutterClient/pubspec.yaml; a tag build fails
-# early if the tag doesn't match it (prevents shipping a stale version).
+# The version comes from MicaGoFlutterClient/pubspec.yaml; every component and
+# release tag must match it (prevents shipping mixed or stale versions).
 
 name: Release
 
@@ -35,7 +36,7 @@ on:
       - "v*.*.*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -50,13 +51,22 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       build_number: ${{ steps.v.outputs.build_number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: v
-        name: Read version from pubspec and check the tag matches
+        name: Check component and tag versions
         run: |
           PUBSPEC_VERSION="$(grep '^version:' MicaGoFlutterClient/pubspec.yaml | awk '{print $2}')"
           VERSION="${PUBSPEC_VERSION%%+*}"
           BUILD_NUMBER="${PUBSPEC_VERSION##*+}"
+          GO_VERSION="$(sed -n 's/^var Version = "v\([^"]*\)"/\1/p' MicaGoServer/micago-server/internal/version/version.go)"
+          WINDOWS_VERSION="$(sed -n 's:.*<MicaGoVersion>\([^<]*\)</MicaGoVersion>.*:\1:p' MicaGoWindowsClient/Directory.Build.props)"
+          MACOS_VERSIONS="$(sed -n 's/.*MARKETING_VERSION = \([^;]*\);/\1/p' MicaGoServer/micago-mac-companion/MicaGoCompanion.xcodeproj/project.pbxproj | sort -u)"
+          for component in GO_VERSION WINDOWS_VERSION MACOS_VERSIONS; do
+            if [ "${!component}" != "$VERSION" ]; then
+              echo "::error::$component (${!component:-missing}) does not match pubspec version $VERSION"
+              exit 1
+            fi
+          done
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             TAG_VERSION="${GITHUB_REF_NAME#v}"
             if [ "$TAG_VERSION" != "$VERSION" ]; then
@@ -79,8 +89,8 @@ jobs:
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -121,7 +131,7 @@ jobs:
           mkdir -p out
           cp MicaGoFlutterClient/build/app/outputs/flutter-apk/app-release.apk \
             "out/micaGO-${{ needs.meta.outputs.version }}-android.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: out/*.apk
@@ -133,7 +143,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 50
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -149,39 +159,36 @@ jobs:
           mkdir -p out Payload
           cp -R MicaGoFlutterClient/build/ios/iphoneos/Runner.app Payload/
           zip -qry "out/micaGO-${{ needs.meta.outputs.version }}-ios-unsigned.ipa" Payload
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-ipa
           path: out/*.ipa
           if-no-files-found: error
 
   windows:
-    name: Windows zip
+    name: Windows x64 (native WinUI)
     needs: meta
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
-          channel: stable
-          cache: true
-      - name: Pub get
-        working-directory: MicaGoFlutterClient
-        run: flutter pub get
-      - name: Build Windows
-        working-directory: MicaGoFlutterClient
-        env:
-          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
-        run: flutter build windows --release
-      - name: Package zip
+          dotnet-version: "10.0.x"
+      - name: Run Windows contract tests
+        working-directory: MicaGoWindowsClient
+        run: dotnet run --project tests/micaGO.Core.ContractTests -c Release
+      - name: Build and package native Windows client
+        working-directory: MicaGoWindowsClient
+        run: ./scripts/package-release-x64.ps1
+      - name: Version artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path out | Out-Null
-          Compress-Archive `
-            -Path "MicaGoFlutterClient/build/windows/x64/runner/Release/*" `
-            -DestinationPath "out/micaGO-${{ needs.meta.outputs.version }}-windows-x64.zip"
-      - uses: actions/upload-artifact@v4
+          Copy-Item `
+            "MicaGoWindowsClient/artifacts/micaGO-release-x64.zip" `
+            "out/micaGO-${{ needs.meta.outputs.version }}-windows-x64.zip"
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-zip
           path: out/*.zip
@@ -190,15 +197,17 @@ jobs:
   linux:
     name: Linux tar.gz
     needs: meta
-    runs-on: ubuntu-latest
+    # Flutter CI-tests Linux desktop deployment on Ubuntu 22.04. Building on
+    # that baseline also avoids unnecessarily requiring Ubuntu 24.04's glibc.
+    runs-on: ubuntu-22.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Linux desktop build deps
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev libsecret-1-dev
+            libgtk-3-dev libstdc++-12-dev liblzma-dev libsecret-1-dev
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -214,7 +223,7 @@ jobs:
           mkdir -p out staging
           cp -r MicaGoFlutterClient/build/linux/x64/release/bundle staging/micaGO
           tar -C staging -czf "out/micaGO-${{ needs.meta.outputs.version }}-linux-x64.tar.gz" micaGO
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-tarball
           path: out/*.tar.gz
@@ -226,8 +235,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      # Tagged releases require every signing, notarization, and Sparkle secret.
-      # Manual workflow runs may still produce an unsigned development artifact.
+      # A complete secret set produces a signed, notarized release with an
+      # appcast. With none configured, both tag and manual builds are unsigned.
       MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
       MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
       MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
@@ -236,10 +245,10 @@ jobs:
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: stable
+          go-version-file: MicaGoServer/micago-server/go.mod
           cache-dependency-path: MicaGoServer/micago-server/go.sum
       - name: Go tests
         working-directory: MicaGoServer/micago-server
@@ -250,6 +259,19 @@ jobs:
         run: |
           brew untap aws/tap || true
           brew install create-dmg
+      - name: Validate optional macOS release credentials
+        run: |
+          SECRET_NAMES=(MACOS_CERT_P12 MACOS_CERT_PASSWORD MACOS_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD SPARKLE_PRIVATE_KEY)
+          CONFIGURED=0
+          for name in "${SECRET_NAMES[@]}"; do
+            if [ -n "${!name}" ]; then
+              CONFIGURED=$((CONFIGURED + 1))
+            fi
+          done
+          if [ "$CONFIGURED" -ne 0 ] && [ "$CONFIGURED" -ne "${#SECRET_NAMES[@]}" ]; then
+            echo "::error::macOS release credentials must be either all configured or all omitted"
+            exit 1
+          fi
       - name: Import signing certificate (only when secrets are set)
         if: env.MACOS_CERT_P12 != ''
         run: |
@@ -270,14 +292,6 @@ jobs:
         run: |
           chmod +x scripts/package-dmg.sh
           export VERSION="${{ needs.meta.outputs.version }}"
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            for name in MACOS_CERT_P12 MACOS_CERT_PASSWORD MACOS_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD SPARKLE_PRIVATE_KEY; do
-              if [ -z "${!name}" ]; then
-                echo "::error::$name is required for a tagged macOS release"
-                exit 1
-              fi
-            done
-          fi
           if [ -n "$MACOS_SIGN_IDENTITY" ]; then
             export SIGN_IDENTITY="$MACOS_SIGN_IDENTITY"
             echo "Signing enabled"
@@ -293,7 +307,7 @@ jobs:
             echo "Sparkle appcast signing enabled"
           fi
           scripts/package-dmg.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-dmg
           path: |
@@ -303,20 +317,26 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.ref_type == 'tag'
     needs: [meta, android, ios, windows, linux, macos]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
-            dist/**/*
-          fail_on_unmatched_files: false
+            dist/*
+          fail_on_unmatched_files: true
           generate_release_notes: true
           body: |
             ## micaGO ${{ needs.meta.outputs.version }}
@@ -329,8 +349,11 @@ jobs:
             | iOS (unsigned, sideload) | `micaGO-${{ needs.meta.outputs.version }}-ios-unsigned.ipa` |
             | Windows | `micaGO-${{ needs.meta.outputs.version }}-windows-x64.zip` |
             | Linux | `micaGO-${{ needs.meta.outputs.version }}-linux-x64.tar.gz` |
+            | Checksums | `SHA256SUMS` |
 
             ### Notes
-            - The Mac DMG bundles the Go backend; no separate install needed.
+            - The Mac DMG bundles the Go backend; no separate install is needed. It is signed and notarized when the complete optional macOS credential set is configured, otherwise it is unsigned.
             - The iOS IPA is **unsigned** — sign/sideload it yourself (e.g. AltStore/Sideloadly).
+            - The Windows archive contains the native WinUI client. The Linux archive contains the complete Flutter bundle; extract it and run `mica_go`.
+            - On Debian/Ubuntu, the Linux runtime libraries can be installed with `sudo apt-get install libgtk-3-0 libblkid1 liblzma5 libsecret-1-0`.
             - Windows/Linux desktop builds are experimental.
