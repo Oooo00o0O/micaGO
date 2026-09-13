@@ -16,6 +16,7 @@ import '../../core/app_controller.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/websocket_client.dart';
+import '../../core/platform/scroll_capture_service.dart';
 import 'realtime_event_helpers.dart' as rt;
 import '../../core/theme_controller.dart';
 import '../../core/storage/media_cache.dart';
@@ -86,6 +87,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
   Map<String, int> _rowIndices = const {};
   String? _reportedThreadError;
   final _scroll = ScrollController();
+  late final ScrollCaptureRegistration _scrollCapture;
   final _composer = TextEditingController();
   final _composerHasText = ValueNotifier<bool>(false);
   final Map<String, GlobalKey> _messageKeys = {};
@@ -191,6 +193,13 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     });
     _controller = _createController(app, _active)..start();
     _scroll.addListener(_onScroll);
+    // The chat area's rounded top corners and the composer overlay would repeat
+    // in every stitched tile of a scrolling screenshot.
+    _scrollCapture = ScrollCaptureService.register(
+      _scroll,
+      topInset: () => 24,
+      bottomInset: () => _bottomOverlayHeight + _keyboardInset(context),
+    );
     _controller.addListener(_onThreadChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_refreshOtherUnreadChats());
@@ -310,6 +319,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     _seenWsSub?.cancel();
     _seenDeltaSub?.cancel();
     _scroll.removeListener(_onScroll);
+    _scrollCapture.dispose();
     _controller.removeListener(_onThreadChanged);
     _controller.dispose();
     _scroll.dispose();
@@ -846,11 +856,18 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
           // C68: raised so it clears the composer pill comfortably.
           bottom: math.max(124, _bottomInset(context) + 6),
           child: Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child: _showJumpToBottom
-                  ? _JumpToBottomButton(onTap: _scrollToBottom)
-                  : const SizedBox.shrink(),
+            // A scrolling screenshot scrolls far enough to show this button and
+            // would stitch it into every tile, so it is removed (not faded) then.
+            child: ValueListenableBuilder<bool>(
+              valueListenable: ScrollCaptureService.capturing,
+              builder: (context, capturing, _) => capturing
+                  ? const SizedBox.shrink()
+                  : AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _showJumpToBottom
+                          ? _JumpToBottomButton(onTap: _scrollToBottom)
+                          : const SizedBox.shrink(),
+                    ),
             ),
           ),
         ),
@@ -2938,6 +2955,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
     final api = widget.api;
     final reactions = widget.reactions;
     final stickers = widget.stickers;
+    // Only reactions that resolve to a glyph take space: a chip with nothing to
+    // draw must not push the bubble down or force its tail.
+    final reactionEmojis = activeReactionEmojis(reactions);
     final reply = widget.reply;
     final effectHint = widget.effectHint;
     final scheme = Theme.of(context).colorScheme;
@@ -3105,7 +3125,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
           fromMe: fromMe,
           showTail:
               widget.showBubbleTail ||
-              reactions.isNotEmpty ||
+              reactionEmojis.isNotEmpty ||
               stickers.isNotEmpty,
         ),
         child: Padding(
@@ -3155,15 +3175,18 @@ class _MessageBubbleState extends State<_MessageBubble> {
       child: bubbleInner,
     );
 
-    final bubbleWithOverlays = reactions.isEmpty && stickers.isEmpty
+    final bubbleWithOverlays = reactionEmojis.isEmpty && stickers.isEmpty
         ? bubble
         : Semantics(
             container: true,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
+                // The chip rides the bubble's top corner (overlapping it by a
+                // few px) and must stay inside this row, clear of the bubble
+                // above.
                 Padding(
-                  padding: EdgeInsets.only(top: stickers.isEmpty ? 8 : 22),
+                  padding: EdgeInsets.only(top: stickers.isEmpty ? 20 : 22),
                   child: bubble,
                 ),
                 if (stickers.isNotEmpty && api != null)
@@ -3176,12 +3199,12 @@ class _MessageBubbleState extends State<_MessageBubble> {
                       stickers: stickers,
                     ),
                   ),
-                if (reactions.isNotEmpty)
+                if (reactionEmojis.isNotEmpty)
                   Positioned(
-                    top: stickers.isEmpty ? -4 : 8,
+                    top: stickers.isEmpty ? 6 : 8,
                     right: fromMe ? null : 4,
                     left: fromMe ? 4 : null,
-                    child: _ReactionChips(reactions: reactions),
+                    child: _ReactionChips(emojis: reactionEmojis),
                   ),
               ],
             ),
@@ -3614,14 +3637,12 @@ class _GroupSenderAvatarSlot extends StatelessWidget {
 
 /// Compact reaction chips overlaid on the target bubble (merged tapbacks).
 class _ReactionChips extends StatelessWidget {
-  final List<MessageModel> reactions;
-  const _ReactionChips({required this.reactions});
+  final List<String> emojis;
+  const _ReactionChips({required this.emojis});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final emojis = activeReactionEmojis(reactions);
-    if (emojis.isEmpty) return const SizedBox.shrink();
     // The chip floats over the bubble corner. On stripped/transparent bubbles
     // (emoji, files, media) it sits directly on the chat background, so give it a
     // shadow + solid surface + border so it stays visible on any background (C54)

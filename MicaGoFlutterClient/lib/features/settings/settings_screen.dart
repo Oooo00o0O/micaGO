@@ -1826,7 +1826,7 @@ class _AboutBodyState extends State<_AboutBody> {
               _AboutInfoTile(
                 icon: Icons.auto_awesome_rounded,
                 title: strings.t('settings.version'),
-                value: 'Iolite v$kAppVersion',
+                value: 'Muscovite v$kAppVersion',
                 onTap: _handleVersionTap,
               ),
               const Divider(height: 1),

@@ -13,7 +13,7 @@ Four components:
 
 ## Important rules
 
-- Current product version is `0.71.0` across Flutter (`+71`), Go, macOS Companion, and Windows; version-comparison fixtures and historical release notes retain their original versions.
+- Current product version is `0.78.0` (codename Muscovite) across Flutter (`+78`), Go, macOS Companion, and Windows; version-comparison fixtures and historical release notes retain their original versions.
 
 - **Never commit unless explicitly asked.** Branch first if on `main`.
 - **Never log, commit, or expose** bearer tokens, push tokens, or service-account paths. The Companion redacts tokens in captured server stdout (`BackendController.redact`).

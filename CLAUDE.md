@@ -21,6 +21,79 @@ Four components:
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
 
+## 0.78.0 Muscovite: packaging on macOS 27, CI trim, plain-language site (C82)
+
+- **Version 0.78.0 (+78), codename Muscovite** across pubspec/`kAppVersion`,
+  `version.go`, Companion + Flutter iOS/macOS `MARKETING_VERSION` /
+  `CURRENT_PROJECT_VERSION`, Windows `Directory.Build.props` + `app.manifest`,
+  `package-dmg.sh`, `release-packaging.md` and AGENTS.md. Codename strings:
+  Flutter `settings.versionFooter` ×3 + the About version tile, Windows
+  `LocalizationService` `version`, Companion `companionVersionLabel`.
+- **macOS 27 toolchain:** Xcode 26.6's linker (`ld-1267`) can't read the
+  Command Line Tools 27.0 SDK (`arm64e.x1` → "unknown architecture"), so cgo
+  links of the backend failed. `package-dmg.sh` (Go step, `GO_DEVELOPER_DIR`)
+  and `build-backend.sh` (`DEVELOPER_DIR`) default to the Command Line Tools
+  toolchain; `xcodebuild` still uses Xcode.
+- **Universal Companion:** `xcodebuild` without `-destination` built only the
+  host architecture — 0.68.0 shipped arm64-only and its appcast declared
+  `hardwareRequirements arm64`. The script now passes
+  `-destination generic/platform=macOS`.
+- **Backend minimum macOS:** cgo's C objects targeted the build host, so the
+  bundled backend's arm64 slice declared `minos 26.0` in 0.68.0 (and 27.0 when
+  built on macOS 27) — it would not launch on older macOS despite the app's 13.0
+  target. `package-dmg.sh` and `build-backend.sh` now export
+  `MACOSX_DEPLOYMENT_TARGET` plus `-mmacosx-version-min` in
+  `CGO_CFLAGS`/`CGO_LDFLAGS` (`BACKEND_MIN_MACOS`, default 13.0), and the DMG
+  script prints the per-arch minos. The 24 `ld` "built for newer 'macOS'
+  version (26.0)" warnings still in the packaging log come from the Companion
+  target's own "Bundle Go Backend" Xcode Run Script phase: its host-only,
+  un-targeted backend is overwritten by the script's universal one, so the DMG
+  is unaffected — but a plain Xcode build still bundles that binary.
+- **Local DMGs sign with the Developer ID identity** (team 37LJQ72TKW, same as
+  published builds) so macOS privacy grants such as Full Disk Access survive
+  replacing an installed copy; an unsigned build changes the code identity.
+- **CI:** removed the Flutter Windows job (there was no Flutter macOS job) and
+  added a `windows` job for the WinUI app on `windows-latest`:
+  `setup-dotnet` 10.0.x → Core contract tests → `package-release-x64.ps1` →
+  `micaGO-<version>-windows-x64.zip`, published with the release. Not yet run on
+  GitHub. The site links the first asset named `*windows*.exe` (preferred) or
+  `*windows*.zip`.
+- **Website** (`docs/index.html`) rewritten in plain language around the common
+  misunderstanding ("a remote control for your own Mac — no Mac, no micaGO"),
+  with an "Is this for me?" section, a Windows download card (`.download-grid`
+  is 3 columns) and a rewritten FAQ.
+- **Auto-update status (checked 2026-09-13):** Sparkle in the installed 0.68.0
+  Companion is enabled and checking (`SULastCheckTime` same day) and the live
+  appcast is signed and reachable; updates stall only because nothing after
+  v0.68.0 has been released. Flutter and Windows only *check* GitHub releases
+  and link to the page — no in-app install.
+
+## Reaction chip spacing + Android scrolling screenshot (C81, client-only)
+
+- **Reaction chip crowded the bubble above.** The chip sat at `top: -4` over a
+  stack whose bubble started 8px down, so it poked into the row gap and touched
+  (with tight grouping, overlapped) the previous bubble. The stack now reserves
+  20px and the chip sits at `top: 6`, overlapping its own bubble by ~5px with
+  clear space above. The overlay, extra space and forced tail only apply when
+  `activeReactionEmojis` yields a glyph, so an unresolvable reaction no longer
+  leaves an empty gap.
+- **Android "Capture more" (scrolling screenshot).** Flutter draws into one
+  SurfaceView, so the system's scroll-capture search found no native scrollable
+  and never offered the button. `FlutterScrollCapture.kt` (API 31+, installed on
+  the FlutterView in `MainActivity.onStart`) implements `ScrollCaptureCallback`
+  over the `micago/scroll_capture` channel: Dart's `ScrollCaptureService`
+  (`core/platform/scroll_capture_service.dart`) reports the active list's
+  bounds, jumps it one tile at a time and returns the covered pixel range; native
+  waits two vsyncs, `PixelCopy`s from the `FlutterSurfaceView` (window copy as a
+  fallback) and draws into the session surface. Lists opt in via
+  `ScrollCaptureService.register(controller, topInset:, bottomInset:)`; the
+  newest visible registration wins (thread beats chat list in two-pane) and
+  `ModalRoute.isCurrentOf` skips lists under another route. The thread excludes
+  its 24px rounded top and the composer overlay, and drops the jump-to-bottom
+  button while `capturing`. Tile geometry is pure and tested
+  (`scroll_capture_plan_test.dart`). **Not yet verified on a device** — the
+  Pixel has a release-signed build, so test with a release APK.
+
 ## Component README rewrite (C80, docs-only)
 
 - `MicaGoWindowsClient/README.md` (was Chinese + pre-WS/SQLite era),

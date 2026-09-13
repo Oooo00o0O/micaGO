@@ -172,7 +172,7 @@ const _strings = {
     'settings.activeServerUrl': 'Active server URL',
     'settings.connection': 'Connection',
     'settings.version': 'Version',
-    'settings.versionFooter': 'Version {version} · Iolite',
+    'settings.versionFooter': 'Version {version} · Muscovite',
     'settings.openSource': 'Open source',
     'display.note':
         'These settings only change how messages look on this device. They '
@@ -463,7 +463,7 @@ const _strings = {
     'settings.activeServerUrl': '当前服务器 URL',
     'settings.connection': '连接',
     'settings.version': '版本',
-    'settings.versionFooter': '版本号 {version} · Iolite',
+    'settings.versionFooter': '版本号 {version} · Muscovite',
     'settings.openSource': '开源地址',
     'display.note': '这些设置只改变消息在本机的显示方式，不会删除消息或改动服务器数据；发送失败的消息始终显示。',
     'display.hideUnsupported': '隐藏不支持 / 系统消息行',
@@ -745,7 +745,7 @@ const _strings = {
     'settings.activeServerUrl': '目前伺服器 URL',
     'settings.connection': '連線',
     'settings.version': '版本',
-    'settings.versionFooter': '版本號 {version} · Iolite',
+    'settings.versionFooter': '版本號 {version} · Muscovite',
     'settings.openSource': '開源地址',
     'display.note': '這些設定只改變訊息在本機的顯示方式，不會刪除訊息或變更伺服器資料；傳送失敗的訊息一律顯示。',
     'display.hideUnsupported': '隱藏不支援 / 系統訊息列',

@@ -14,7 +14,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPANION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SERVER_DIR="$(cd "$COMPANION_DIR/../micago-server" && pwd)"
-VERSION="${VERSION:-0.71.0}"
+VERSION="${VERSION:-0.78.0}"
 CONFIGURATION="${CONFIGURATION:-Release}"
 DERIVED_DATA="${DERIVED_DATA:-$COMPANION_DIR/build/DerivedData}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$COMPANION_DIR/build/release}"
@@ -46,16 +46,36 @@ fi
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LDFLAGS="-X micagoserver/internal/version.Commit=$COMMIT -X micagoserver/internal/version.BuildTime=$BUILD_TIME"
 
+# The backend links through cgo (go-sqlite3). When macOS is newer than the
+# selected Xcode, xcrun pairs Xcode's older linker with the Command Line Tools'
+# newer SDK and the link fails ("unknown architecture arm64e.x1"). The Command
+# Line Tools linker always matches its own SDK, so the Go step prefers it.
+GO_DEVELOPER_DIR="${GO_DEVELOPER_DIR:-}"
+if [ -z "$GO_DEVELOPER_DIR" ] && [ -x /Library/Developer/CommandLineTools/usr/bin/clang ]; then
+  GO_DEVELOPER_DIR=/Library/Developer/CommandLineTools
+fi
+
 echo "==> Building universal Go backend ($VERSION)"
 (
   cd "$SERVER_DIR"
   export GOCACHE="${GOCACHE:-$SERVER_DIR/.gocache}"
+  if [ -n "$GO_DEVELOPER_DIR" ]; then
+    export DEVELOPER_DIR="$GO_DEVELOPER_DIR"
+  fi
+  # cgo's C objects otherwise target the build host's macOS (a backend built on
+  # macOS 27 declared minos 27.0) and refuse to launch on older systems. Match
+  # the Companion's deployment target.
+  BACKEND_MIN_MACOS="${BACKEND_MIN_MACOS:-13.0}"
+  export MACOSX_DEPLOYMENT_TARGET="$BACKEND_MIN_MACOS"
+  export CGO_CFLAGS="${CGO_CFLAGS:--O2 -g} -mmacosx-version-min=$BACKEND_MIN_MACOS"
+  export CGO_LDFLAGS="${CGO_LDFLAGS:--O2 -g} -mmacosx-version-min=$BACKEND_MIN_MACOS"
   GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$BACKEND_DIR/micago-arm64" ./cmd/micago
   GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$BACKEND_DIR/micago-amd64" ./cmd/micago
 )
 lipo -create -output "$BACKEND_DIR/micago" "$BACKEND_DIR/micago-arm64" "$BACKEND_DIR/micago-amd64"
 chmod +x "$BACKEND_DIR/micago"
 "$BACKEND_DIR/micago" --version
+echo "Backend minimum macOS (per arch): $(vtool -show-build "$BACKEND_DIR/micago" | awk '/minos/ {printf "%s ", $2}')"
 
 echo "==> Building micaGO Companion.app"
 XCODE_SIGNING_ARGS=()
@@ -74,10 +94,13 @@ else
     XCODE_SIGNING_ARGS+=(DEVELOPMENT_TEAM="$APPLE_TEAM_ID")
   fi
 fi
+# Without a generic destination xcodebuild builds only the host architecture,
+# which shipped an arm64-only app (and an arm64-only Sparkle appcast entry).
 xcodebuild \
   -project "$COMPANION_DIR/MicaGoCompanion.xcodeproj" \
   -scheme MicaGoCompanion \
   -configuration "$CONFIGURATION" \
+  -destination "generic/platform=macOS" \
   -derivedDataPath "$DERIVED_DATA" \
   "${XCODE_SIGNING_ARGS[@]}" \
   build
@@ -86,6 +109,7 @@ if [ ! -d "$APP_PATH" ]; then
   echo "error: app not found at $APP_PATH" >&2
   exit 1
 fi
+echo "Companion architectures: $(lipo -archs "$APP_PATH/Contents/MacOS/MicaGoCompanion")"
 
 echo "==> Installing bundled backend"
 mkdir -p "$APP_PATH/Contents/Resources"

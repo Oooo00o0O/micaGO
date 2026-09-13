@@ -651,9 +651,9 @@ private struct AboutPage: View {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
         let cleanVersion = (version?.isEmpty == false ? version : nil) ?? "0.0.0"
         if let build, !build.isEmpty, build != cleanVersion {
-            return "Iolite v\(cleanVersion) (\(build))"
+            return "Muscovite v\(cleanVersion) (\(build))"
         }
-        return "Iolite v\(cleanVersion)"
+        return "Muscovite v\(cleanVersion)"
     }
 }
 

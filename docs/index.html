@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>micaGO - iMessage, from anywhere</title>
+    <title>micaGO - Use your Mac's iMessage on Android and Windows</title>
     <meta
       name="description"
-      content="micaGO lets your Android phone read and send iMessage and SMS through your own Mac, without routing conversations through a hosted message cloud."
+      content="micaGO lets you read and reply to the iMessages on your own Mac from an Android phone or a Windows PC. Your Mac does the sending; micaGO is the remote control."
     />
     <link rel="icon" href="assets/Client.png" />
     <link rel="stylesheet" href="styles.css" />
@@ -18,9 +18,9 @@
         <span>micaGO</span>
       </a>
       <nav class="site-nav" aria-label="Primary navigation">
-        <a href="#features">Features</a>
-        <a href="#privacy">Privacy</a>
+        <a href="#how">How it works</a>
         <a href="#downloads">Downloads</a>
+        <a href="#faq">FAQ</a>
         <a href="https://github.com/cinmou/MicaGo/blob/main/docs/index.md">Docs</a>
       </nav>
     </header>
@@ -28,71 +28,111 @@
     <main id="top">
       <section class="hero section">
         <div class="hero-copy">
-          <h1><span>iMessage,</span> <span>from</span> <span>anywhere.</span></h1>
+          <h1><span>Your Mac's iMessage,</span> <span>on your phone</span> <span>and PC.</span></h1>
           <p class="hero-subtitle">
-            micaGO lets you read and send iMessage and SMS through your own Mac, without routing
-            your conversations through a hosted message cloud.
+            micaGO lets you read and reply to your iMessages from an Android phone or a Windows
+            PC. It works like a remote control for the Messages app on your own Mac, so you
+            need a Mac that stays switched on.
           </p>
           <div class="hero-actions" aria-label="Download and documentation links">
-            <a class="button button-primary" href="https://github.com/cinmou/MicaGo/releases/latest">Download beta</a>
-            <a class="button button-secondary" href="https://github.com/cinmou/MicaGo/blob/main/docs/getting-started.md">Setup guide</a>
+            <a class="button button-primary" href="#downloads">Download</a>
+            <a class="button button-secondary" href="#how">How it works</a>
             <a class="button button-ghost" href="https://github.com/cinmou/MicaGo">View source</a>
           </div>
         </div>
-        <div class="hero-visual logo-hero" aria-label="micaGO client and server apps">
+        <div class="hero-visual logo-hero" aria-label="micaGO client and Mac Companion apps">
           <img class="hero-logo hero-logo-client" src="assets/Client.png" alt="micaGO client app logo" />
           <img class="hero-logo hero-logo-server" src="assets/Server.png" alt="micaGO Mac Companion logo" />
         </div>
       </section>
 
-      <section class="trust-row" aria-label="Project principles">
+      <section class="trust-row" aria-label="micaGO in three sentences">
         <div>
-          <strong>No hosted message server</strong>
-          <span>Your conversations stay between your devices and your Mac.</span>
+          <strong>It's a remote for your Mac</strong>
+          <span>Your Mac really sends and receives the messages. micaGO lets you do it from another device.</span>
         </div>
         <div>
-          <strong>Your Mac stays in control</strong>
-          <span>The companion app runs the bridge and shows connection status.</span>
+          <strong>No Mac, no micaGO</strong>
+          <span>You need your own Mac, switched on, with Messages signed in to your Apple ID.</span>
         </div>
         <div>
-          <strong>Open source</strong>
-          <span>Client, server, and companion code are available on GitHub.</span>
+          <strong>No micaGO servers</strong>
+          <span>Messages travel between your devices and your Mac. We don't run a server that sees them.</span>
+        </div>
+      </section>
+
+      <section class="section split-section">
+        <div class="section-copy">
+          <p class="eyebrow">Is this for me?</p>
+          <h2>Check this before you download.</h2>
+          <p>
+            People often guess micaGO is an app that gives Android phones iMessage on its own.
+            It isn't. It only works together with a Mac you already have.
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <h3>Good fit: you own a Mac</h3>
+            <p>
+              A Mac at home or at work that is signed in to Messages and can stay on. That Mac
+              is what actually talks to Apple.
+            </p>
+          </article>
+          <article class="feature-card">
+            <h3>Good fit: you also use Android or Windows</h3>
+            <p>
+              You want to keep up with your iMessage chats from an Android phone, tablet, or a
+              Windows computer instead of walking back to the Mac.
+            </p>
+          </article>
+          <article class="feature-card">
+            <h3>Not a fit: you have no Mac</h3>
+            <p>
+              micaGO can't create an iMessage account or connect to Apple by itself. Without a
+              Mac of your own, it won't work.
+            </p>
+          </article>
+          <article class="feature-card">
+            <h3>Not a fit: the Mac is usually off</h3>
+            <p>
+              Messages only come and go while the Mac is on and awake. If it sleeps or shuts
+              down, micaGO waits until it's back.
+            </p>
+          </article>
         </div>
       </section>
 
       <section id="features" class="section split-section">
         <div class="section-copy">
-          <p class="eyebrow">What it does</p>
-          <h2>Use your Mac as the bridge.</h2>
+          <p class="eyebrow">What you can do</p>
+          <h2>Everyday chatting, from another screen.</h2>
           <p>
-            Install the Mac Companion, pair the client, and keep messaging through the accounts
-            already configured on your Mac.
+            Replies are sent by your Mac with your own Apple ID and phone number, exactly as if
+            you had typed them on the Mac. Your friends see nothing different.
           </p>
         </div>
         <div class="feature-grid">
           <article class="feature-card">
-            <h3>iMessage through your Mac</h3>
+            <h3>Blue-bubble chats</h3>
+            <p>Read and reply to your iMessage conversations, including group chats.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Photos, voice and reactions</h3>
+            <p>Send pictures and voice messages, reply to a message, and add reactions.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Green-bubble texts</h3>
             <p>
-              Read and send iMessage from your client through your own Mac.
-              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/getting-started.md">Read the setup guide</a>.
+              Regular text messages (SMS) work too if your iPhone forwards them to your Mac
+              (Text Message Forwarding in the iPhone settings).
             </p>
           </article>
           <article class="feature-card">
-            <h3>SMS through Mac</h3>
-            <p>Use SMS relay when your Mac and Messages setup support it.</p>
-          </article>
-          <article class="feature-card">
-            <h3>Rich messaging support</h3>
+            <h3>Away from home (optional)</h3>
             <p>
-              Send media and use modern chat features such as replies, reactions, link previews,
-              voice messages, and group chats where supported.
-            </p>
-          </article>
-          <article class="feature-card">
-            <h3>Local-first bridge</h3>
-            <p>
-              Connect over LAN first, with optional remote access through your own public URL.
-              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Set up remote access</a>.
+              On the same Wi-Fi it just works. To use it anywhere, you can set up your own
+              secure link to your Mac.
+              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Remote access guide</a>.
             </p>
           </article>
         </div>
@@ -100,11 +140,11 @@
 
       <section class="showcase section" aria-labelledby="showcase-title">
         <div class="section-copy centered showcase-intro">
-          <p class="eyebrow">Across your devices</p>
-          <h2 id="showcase-title">One client, sized for every screen.</h2>
+          <p class="eyebrow">What it looks like</p>
+          <h2 id="showcase-title">A chat app on your devices, a control panel on your Mac.</h2>
           <p>
-            Chat from a phone or tablet, while the Mac Companion keeps the bridge running and
-            gives you one place to manage it.
+            You chat in the micaGO app. On the Mac, the Companion app runs quietly in the menu
+            bar and shows whether everything is connected.
           </p>
         </div>
 
@@ -112,8 +152,8 @@
           <div class="showcase-heading">
             <span class="platform">Android</span>
             <div>
-              <h3>Messaging on your phone</h3>
-              <p>Conversations, settings, and rich message threads in the mobile layout.</p>
+              <h3>Chat on your phone</h3>
+              <p>Your conversation list, message threads, and settings.</p>
             </div>
           </div>
           <div class="screenshot-grid screenshot-grid-portrait">
@@ -127,8 +167,8 @@
           <div class="showcase-heading">
             <span class="platform">Tablet</span>
             <div>
-              <h3>A split view for larger screens</h3>
-              <p>Keep the conversation list and current chat visible together.</p>
+              <h3>More room on a tablet</h3>
+              <p>See your conversation list and the open chat side by side.</p>
             </div>
           </div>
           <div class="screenshot-grid screenshot-grid-landscape">
@@ -142,8 +182,8 @@
           <div class="showcase-heading">
             <span class="platform">macOS</span>
             <div>
-              <h3>Manage the bridge from your Mac</h3>
-              <p>Check status, pair clients, and configure the local server from the Companion.</p>
+              <h3>The Companion on your Mac</h3>
+              <p>Shows the connection status and the QR code you scan to connect a device.</p>
             </div>
           </div>
           <div class="screenshot-grid screenshot-grid-landscape">
@@ -154,54 +194,57 @@
         </div>
       </section>
 
-      <section class="section steps-section">
+      <section id="how" class="section steps-section">
         <div class="section-copy centered">
           <p class="eyebrow">How it works</p>
-          <h2>Three steps to start messaging.</h2>
+          <h2>Set up once, in three steps.</h2>
         </div>
         <div class="steps">
           <article>
             <span>1</span>
-            <h3>Run Mac Companion</h3>
+            <h3>Set up your Mac</h3>
             <p>
-              Launch the companion app on the Mac that already has Messages configured.
-              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/getting-started.md">See the Mac setup steps</a>.
+              Install the micaGO Companion on the Mac that has Messages signed in. When it asks,
+              allow Full Disk Access so it can see your messages.
+              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/getting-started.md">Mac setup guide</a>.
             </p>
           </article>
           <article>
             <span>2</span>
-            <h3>Pair Android</h3>
+            <h3>Connect your phone or PC</h3>
             <p>
-              Connect on the same network, or use your own public URL for remote access.
-              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/android-client-connection.md">Pair the client</a>.
+              Install micaGO on Android or Windows, then scan the QR code shown by the Companion.
+              Being on the same Wi-Fi is the easiest way to start.
+              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/android-client-connection.md">Connection guide</a>.
             </p>
           </article>
           <article>
             <span>3</span>
-            <h3>Start messaging</h3>
-            <p>Use your Android phone while the Mac keeps the bridge under your control.</p>
+            <h3>Start chatting</h3>
+            <p>Your conversations appear. Leave the Mac on and it keeps delivering messages both ways.</p>
           </article>
         </div>
       </section>
 
       <section id="privacy" class="privacy-section section">
         <div>
-          <p class="eyebrow">Privacy model</p>
-          <h2>Your messages do not pass through a micaGO hosted message cloud.</h2>
+          <p class="eyebrow">Privacy</p>
+          <h2>Your messages go between your devices and your Mac. Nowhere else.</h2>
         </div>
         <div class="privacy-list">
           <p>
-            micaGO is designed around your Mac. The companion app reads from your local Messages
-            setup and serves the devices you pair.
+            There is no micaGO account and no micaGO cloud. We don't operate a server that stores
+            or reads your conversations.
           </p>
           <p>
-            <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Remote access</a>
-            is optional. If you use it, you bring your own tunnel or public URL and protect it with
-            your token.
+            Using micaGO away from home is optional. If you set it up, the link goes to your own
+            Mac and is protected by a secret key only your devices know.
+            <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Remote access guide</a>.
           </p>
           <p>
-            <a href="https://github.com/cinmou/MicaGo/blob/main/docs/notifications-setup.md">Push notifications</a>
-            are optional and can be self-hosted through your own Firebase setup.
+            Push notifications are optional too. If you turn them on, notifications are delivered
+            by Google's push service through a Firebase project you create yourself.
+            <a href="https://github.com/cinmou/MicaGo/blob/main/docs/notifications-setup.md">Notifications guide</a>.
           </p>
         </div>
       </section>
@@ -209,8 +252,8 @@
       <section id="downloads" class="section downloads-section">
         <div class="section-copy centered">
           <p class="eyebrow">Downloads</p>
-          <h2>Install the beta builds.</h2>
-          <p>Start with the Mac Companion, then install the client and pair it.</p>
+          <h2>Install the Mac part first, then your device.</h2>
+          <p>Every setup needs the Mac Companion. Then pick the app for the device you'll chat on.</p>
         </div>
         <div class="download-grid">
           <article class="download-card">
@@ -219,65 +262,78 @@
               <span class="platform">macOS</span>
             </div>
             <h3>Mac Companion</h3>
-            <p>Requires macOS 13 or newer. Runs the local server, pairs devices, and manages sync.</p>
-            <a id="download-dmg" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest">Download DMG</a>
+            <p>Required. Runs on your Mac (macOS 13 or newer) and connects your devices to Messages.</p>
+            <a id="download-dmg" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest">Download for Mac</a>
           </article>
           <article class="download-card">
             <div class="download-card-header">
               <img class="download-icon" src="assets/Client.png" alt="" />
               <span class="platform">Android</span>
             </div>
-            <h3>Android APK</h3>
-            <p>
-              Requires Android 6.0 or newer. Includes layouts for phones, tablets, and large
-              screens.
-            </p>
+            <h3>Android app</h3>
+            <p>For phones and tablets running Android 6.0 or newer.</p>
             <a id="download-apk" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest">Download APK</a>
+          </article>
+          <article class="download-card">
+            <div class="download-card-header">
+              <img class="download-icon download-icon-plain" src="assets/micaGO%20Windows.png" alt="" />
+              <span class="platform">Windows</span>
+            </div>
+            <h3>Windows app</h3>
+            <p>For 64-bit Windows 10 (version 1809) or newer. Windows 11 recommended.</p>
+            <a id="download-windows" class="button button-buy" href="https://github.com/cinmou/MicaGo/releases/latest">Download for Windows</a>
           </article>
         </div>
         <aside class="platform-note">
-          <h3>Platform notes</h3>
+          <h3>Good to know</h3>
           <p>
-            micaGO's client is built with Flutter, so additional platforms may be possible. The
-            Android build is the primary tested release right now. Other builds are experimental
-            until they are tested and documented. See the
-            <a href="https://github.com/cinmou/MicaGo/blob/main/docs/index.md">user documentation</a>
-            for the current support notes.
+            micaGO is beta software. Android is the most tested app; the Windows app is newer and
+            still being polished. All downloads come from the project's GitHub releases page. See the
+            <a href="https://github.com/cinmou/MicaGo/blob/main/docs/index.md">documentation</a>
+            for step-by-step help.
           </p>
         </aside>
       </section>
 
-      <section class="section faq-section">
+      <section id="faq" class="section faq-section">
         <div class="section-copy">
           <p class="eyebrow">FAQ</p>
           <h2>Common questions.</h2>
         </div>
         <div class="faq-list">
           <details>
+            <summary>Can I get iMessage on Android without a Mac?</summary>
+            <p>No. micaGO needs your own Mac signed in to Messages. The Mac does the real work.</p>
+          </details>
+          <details>
+            <summary>Does my Mac have to stay on?</summary>
+            <p>
+              Yes. While the Mac is asleep or off, nothing is sent or received. The Companion has a
+              Keep Awake switch to stop the Mac from sleeping.
+            </p>
+          </details>
+          <details>
+            <summary>Will my friends see a different number or name?</summary>
+            <p>No. Messages are sent by your Mac from your own Apple ID and number.</p>
+          </details>
+          <details>
             <summary>Is micaGO made by Apple?</summary>
             <p>No. micaGO is an independent open source project and is not affiliated with Apple.</p>
           </details>
           <details>
-            <summary>Do I need a Mac?</summary>
-            <p>
-              Yes. micaGO uses your Mac as the bridge for iMessage and SMS.
-              <a href="https://github.com/cinmou/MicaGo/blob/main/docs/getting-started.md">Start with the Mac Companion guide</a>.
-            </p>
-          </details>
-          <details>
             <summary>Are my messages stored in a micaGO cloud?</summary>
-            <p>No. micaGO does not provide a hosted message cloud for your conversations.</p>
+            <p>No. There is no micaGO cloud. Messages stay on your Mac and the devices you connect.</p>
           </details>
           <details>
             <summary>Can I use it away from home?</summary>
             <p>
-              Yes, if you configure a public URL or tunnel that points to your Mac Companion.
+              Yes, once you set up your own secure link to your Mac.
               <a href="https://github.com/cinmou/MicaGo/blob/main/docs/remote-access-cloudflare.md">Read the remote access guide</a>.
             </p>
           </details>
           <details>
             <summary>Is it stable?</summary>
-            <p>micaGO is beta software. Expect some rough edges while the project moves toward a stable release.</p>
+            <p>It's beta software. It works day to day, but expect some rough edges.</p>
           </details>
         </div>
       </section>
@@ -291,24 +347,30 @@
 
     <script>
       // Resolve direct download URLs for the latest release assets. Asset names
-      // are versioned (micaGO-<x.y.z>-android.apk / -mac.dmg), so the stable
-      // /releases/latest/download/<name> shortcut can't be hardcoded; ask the
-      // GitHub API instead. On any failure (offline, rate limit) the buttons
-      // keep their releases-page fallback href.
+      // are versioned, so the stable /releases/latest/download/<name> shortcut
+      // can't be hardcoded; ask the GitHub API instead. On any failure (offline,
+      // rate limit, asset missing) the buttons keep their releases-page href.
       (function () {
         fetch("https://api.github.com/repos/cinmou/MicaGo/releases/latest")
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (release) {
             if (!release || !Array.isArray(release.assets)) return;
-            function wire(id, suffix) {
-              var asset = release.assets.find(function (a) {
-                return a.name && a.name.toLowerCase().endsWith(suffix);
+            function find(test) {
+              return release.assets.find(function (a) {
+                return a.name && test(a.name.toLowerCase());
               });
+            }
+            function wire(id, asset) {
               var el = document.getElementById(id);
               if (asset && el) el.href = asset.browser_download_url;
             }
-            wire("download-dmg", ".dmg");
-            wire("download-apk", ".apk");
+            wire("download-dmg", find(function (n) { return n.endsWith(".dmg"); }));
+            wire("download-apk", find(function (n) { return n.endsWith(".apk"); }));
+            wire(
+              "download-windows",
+              find(function (n) { return n.indexOf("windows") !== -1 && n.endsWith(".exe"); }) ||
+                find(function (n) { return n.indexOf("windows") !== -1 && n.endsWith(".zip"); })
+            );
           })
           .catch(function () { /* keep the releases-page fallback */ });
       })();

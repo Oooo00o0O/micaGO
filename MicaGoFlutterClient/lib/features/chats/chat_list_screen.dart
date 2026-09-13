@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_controller.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/platform/incoming_share_service.dart';
+import '../../core/platform/scroll_capture_service.dart';
 import '../contacts/contacts_service.dart';
 import '../settings/message_display_controller.dart';
 import 'avatar.dart';
@@ -49,10 +50,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
   bool _searchOpen = false;
   Timer? _autoRefresh;
   String _registeredShareTargetsKey = '';
+  final _scroll = ScrollController();
+  late final ScrollCaptureRegistration _scrollCapture;
 
   @override
   void initState() {
     super.initState();
+    _scrollCapture = ScrollCaptureService.register(_scroll);
     _controller = ChatListController(context.read<AppController>());
     _controller.includeDebug = context
         .read<MessageDisplayController>()
@@ -100,6 +104,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   void dispose() {
     _autoRefresh?.cancel();
     widget.searchRequests?.removeListener(_openSearch);
+    _scrollCapture.dispose();
+    _scroll.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     _controller.dispose();
@@ -332,6 +338,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     child: merged.isEmpty
                         ? _NoMatches(query: _query)
                         : ListView.separated(
+                            controller: _scroll,
                             padding: EdgeInsets.fromLTRB(
                               12,
                               12,
