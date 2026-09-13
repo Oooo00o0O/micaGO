@@ -26,8 +26,13 @@ MessageModel server(String id) => MessageModel(
   dateCreated: 100500,
 );
 
+class TestStore implements SecureStore {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class TestApp extends AppController {
-  TestApp(this.client) : super(store: SecureStore());
+  TestApp(this.client) : super(store: TestStore());
   final ApiClient client;
   @override
   ApiClient get api => client;
@@ -49,13 +54,15 @@ void main() {
       baseUrl: 'http://test',
       token: 'test',
       httpClient: MockClient((request) async {
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response('{"data":[],"hasMore":false}', 200);
-        if (reject)
+        }
+        if (reject) {
           return http.Response(
             '{"error":{"code":"send_failed","message":"Rejected"}}',
             500,
           );
+        }
         return http.Response(
           jsonEncode({
             'guid': 'retry-confirmed',
@@ -84,10 +91,10 @@ void main() {
       expect(cached.single.guid, 'retry-confirmed');
     } finally {
       controller.dispose();
-      app.dispose();
       client.close();
       await app.cache.clearAll();
       await app.cache.close();
+      app.dispose();
     }
   });
   test(

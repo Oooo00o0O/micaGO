@@ -536,42 +536,16 @@ class ThreadController extends ChangeNotifier {
           break;
         }
         if (threadGuids.contains(msg.chatGuid)) {
-          if (rt.isReactionMessage(msg)) {
-            final target = rt.reactionTargetGuid(msg);
-            final applied =
-                target != null &&
-                _col.applyReactionEvent(
-                  targetGuid: target,
-                  reaction: ReactionModel(
-                    type: rt.reactionType(msg),
-                    fromHandle: msg.handleId,
-                    isFromMe: msg.isFromMe,
-                    eventGuid: msg.guid,
-                    createdAt: msg.dateCreated,
-                  ),
-                  add: rt.isReactionAdd(msg),
-                );
-            unawaited(
-              app.cache.applyReactionEvent(msg.chatGuid ?? chatGuid, msg).then((
-                ok,
-              ) {
-                if (ok) return app.markRealtimeEventApplied(e);
-                return app.recordRealtimeFallback();
-              }),
-            );
-            if (!applied) _scheduleReload();
-          } else {
-            _col.upsertServer(msg);
-            _sweepAttachmentSendBookkeeping();
-            unawaited(
-              app.cache
-                  .upsertMessage(msg.chatGuid ?? chatGuid, msg)
-                  .then(
-                    (_) => app.markRealtimeEventApplied(e),
-                    onError: (_) => app.recordRealtimeFallback(),
-                  ),
-            );
-          }
+          _col.upsertServer(msg);
+          _sweepAttachmentSendBookkeeping();
+          unawaited(
+            app.cache
+                .upsertMessage(msg.chatGuid ?? chatGuid, msg)
+                .then(
+                  (_) => app.markRealtimeEventApplied(e),
+                  onError: (_) => app.recordRealtimeFallback(),
+                ),
+          );
           state = ThreadState.loaded;
           _notify();
         }

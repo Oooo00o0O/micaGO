@@ -3620,19 +3620,8 @@ class _ReactionChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    // Latest reaction per sender, additions only (skip the -removed variants).
-    final byHandle = <String, TapbackKind>{};
-    for (final r in reactions) {
-      final t = tapbackFromCode(r.associatedMessageType);
-      if (t == null) continue;
-      final key = r.isFromMe ? 'me' : (r.handleId ?? 'unknown');
-      if (t.isRemoval) {
-        byHandle.remove(key);
-      } else {
-        byHandle[key] = t.kind;
-      }
-    }
-    if (byHandle.isEmpty) return const SizedBox.shrink();
+    final emojis = activeReactionEmojis(reactions);
+    if (emojis.isEmpty) return const SizedBox.shrink();
     // The chip floats over the bubble corner. On stripped/transparent bubbles
     // (emoji, files, media) it sits directly on the chat background, so give it a
     // shadow + solid surface + border so it stays visible on any background (C54)
@@ -3652,7 +3641,7 @@ class _ReactionChips extends StatelessWidget {
         ],
       ),
       child: Text(
-        byHandle.values.map((k) => tapbackEmoji(k)).join(' '),
+        emojis.join(' '),
         style: const TextStyle(fontSize: 12),
       ),
     );

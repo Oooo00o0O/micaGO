@@ -298,7 +298,7 @@ MessageRenderableKind? _renderableKindFromServerSemantics(MessageModel m) {
 
 // ---------------------------------------------------------------------------
 // Tapbacks / reactions (BlueBubbles-compatible). associatedMessageType is the
-// chat.db integer code: 1000 sticker; 2000-2005 add; 3000-3005 remove.
+// chat.db codes: 1000 sticker; 2000-2006 add; 3000-3006 remove.
 // ---------------------------------------------------------------------------
 
 enum TapbackKind {
@@ -308,6 +308,7 @@ enum TapbackKind {
   laugh,
   emphasize,
   question,
+  custom,
   sticker,
   unknown,
 }
@@ -330,9 +331,10 @@ Tapback? tapbackFromCode(int? code) {
     TapbackKind.laugh,
     TapbackKind.emphasize,
     TapbackKind.question,
+    TapbackKind.custom,
   ];
-  if (code >= 2000 && code <= 2005) return Tapback(kinds[code - 2000], false);
-  if (code >= 3000 && code <= 3005) return Tapback(kinds[code - 3000], true);
+  if (code >= 2000 && code <= 2006) return Tapback(kinds[code - 2000], false);
+  if (code >= 3000 && code <= 3006) return Tapback(kinds[code - 3000], true);
   return null;
 }
 
@@ -363,9 +365,40 @@ bool isInteractiveUpdate(MessageModel m) =>
 bool isKeptAudioNotice(MessageModel m) =>
     m.itemType == 5 && (m.subject?.trim().isNotEmpty ?? false);
 
-/// The emoji glyph for a tapback (for chips on the target bubble).
+String reactionEmoji(MessageModel message) {
+  final tapback = tapbackFromCode(message.associatedMessageType);
+  if (tapback == null) return '';
+  return tapback.kind == TapbackKind.custom
+      ? message.associatedMessageEmoji?.trim() ?? ''
+      : tapbackEmoji(tapback.kind);
+}
+
+List<String> activeReactionEmojis(Iterable<MessageModel> reactions) {
+  final ordered = reactions.toList()
+    ..sort((a, b) {
+      final date = (a.dateCreated ?? 0).compareTo(b.dateCreated ?? 0);
+      return date != 0 ? date : a.sourceRowId.compareTo(b.sourceRowId);
+    });
+  final bySender = <String, String>{};
+  for (final reaction in ordered) {
+    final tapback = tapbackFromCode(reaction.associatedMessageType);
+    if (tapback == null || tapback.kind == TapbackKind.sticker) continue;
+    final sender = reaction.isFromMe ? 'me' : reaction.handleId ?? 'unknown';
+    final emoji = reactionEmoji(reaction);
+    if (tapback.isRemoval) {
+      if (emoji.isEmpty || bySender[sender] == emoji) bySender.remove(sender);
+    } else if (emoji.isNotEmpty) {
+      bySender[sender] = emoji;
+    }
+  }
+  return bySender.values.toList();
+}
+
+/// The emoji glyph for a fixed tapback.
 String tapbackEmoji(TapbackKind kind) {
   switch (kind) {
+    case TapbackKind.custom:
+      return '';
     case TapbackKind.love:
       return '❤️'; // ❤️
     case TapbackKind.like:
@@ -388,6 +421,8 @@ String tapbackEmoji(TapbackKind kind) {
 /// fallback system row when the target message isn't loaded.
 String tapbackVerb(TapbackKind kind) {
   switch (kind) {
+    case TapbackKind.custom:
+      return 'reacted to';
     case TapbackKind.love:
       return 'loved';
     case TapbackKind.like:

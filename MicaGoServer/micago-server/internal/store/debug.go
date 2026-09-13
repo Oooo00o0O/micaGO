@@ -55,20 +55,21 @@ type DebugMessageJSON struct {
 	DateDelivered *int64 `json:"dateDelivered"`
 	DateRead      *int64 `json:"dateRead"`
 
-	AssociatedMessageType *int64  `json:"associatedMessageType"`
-	AssociatedMessageGUID *string `json:"associatedMessageGuid"`
-	ThreadOriginatorGUID  *string `json:"threadOriginatorGuid"`
-	ItemType              *int64  `json:"itemType"`
-	GroupActionType       *int64  `json:"groupActionType"`
-	GroupTitle            *string `json:"groupTitle"`
-	BalloonBundleID       *string `json:"balloonBundleId"`
-	ExpressiveSendStyleID *string `json:"expressiveSendStyleId"`
-	PayloadDataPresent    bool    `json:"payloadDataPresent"`
-	Error                 *int64  `json:"error"`
-	DateRetracted         *int64  `json:"dateRetracted"`
-	DateEdited            *int64  `json:"dateEdited"`
-	IsRetracted           bool    `json:"isRetracted"`
-	IsEdited              bool    `json:"isEdited"`
+	AssociatedMessageType  *int64  `json:"associatedMessageType"`
+	AssociatedMessageGUID  *string `json:"associatedMessageGuid"`
+	AssociatedMessageEmoji *string `json:"associatedMessageEmoji"`
+	ThreadOriginatorGUID   *string `json:"threadOriginatorGuid"`
+	ItemType               *int64  `json:"itemType"`
+	GroupActionType        *int64  `json:"groupActionType"`
+	GroupTitle             *string `json:"groupTitle"`
+	BalloonBundleID        *string `json:"balloonBundleId"`
+	ExpressiveSendStyleID  *string `json:"expressiveSendStyleId"`
+	PayloadDataPresent     bool    `json:"payloadDataPresent"`
+	Error                  *int64  `json:"error"`
+	DateRetracted          *int64  `json:"dateRetracted"`
+	DateEdited             *int64  `json:"dateEdited"`
+	IsRetracted            bool    `json:"isRetracted"`
+	IsEdited               bool    `json:"isEdited"`
 
 	CacheHasAttachments bool                  `json:"cacheHasAttachments"`
 	Attachments         []DebugAttachmentJSON `json:"attachments"`
@@ -95,6 +96,7 @@ type DebugListOptions struct {
 var optionalDebugColumns = []string{
 	"associated_message_type",
 	"associated_message_guid",
+	"associated_message_emoji",
 	"thread_originator_guid",
 	"item_type",
 	"group_action_type",
@@ -229,7 +231,7 @@ func scanDebugRow(rows *sql.Rows, present []string) (DebugMessageJSON, error) {
 	var payloadHolder []byte
 	for _, name := range present {
 		switch name {
-		case "associated_message_guid", "thread_originator_guid", "group_title",
+		case "associated_message_guid", "associated_message_emoji", "thread_originator_guid", "group_title",
 			"balloon_bundle_id", "expressive_send_style_id", "account":
 			h := &sql.NullString{}
 			strHolders[name] = h
@@ -277,6 +279,7 @@ func scanDebugRow(rows *sql.Rows, present []string) (DebugMessageJSON, error) {
 	msg.GroupActionType = nullInt(intHolders["group_action_type"])
 	msg.Error = nullInt(intHolders["error"])
 	msg.AssociatedMessageGUID = nullStr(strHolders["associated_message_guid"])
+	msg.AssociatedMessageEmoji = nullStr(strHolders["associated_message_emoji"])
 	msg.ThreadOriginatorGUID = nullStr(strHolders["thread_originator_guid"])
 	msg.GroupTitle = nullStr(strHolders["group_title"])
 	msg.BalloonBundleID = nullStr(strHolders["balloon_bundle_id"])

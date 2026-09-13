@@ -167,12 +167,7 @@ class ChatListController extends ChangeNotifier {
     }
     try {
       if (rt.isReactionMessage(msg)) {
-        final ok = await app.cache.applyReactionEvent(chatGuid, msg);
-        if (!ok) {
-          await app.recordRealtimeFallback(chatListReload: true);
-          _scheduleServerReload();
-          return;
-        }
+        await app.cache.upsertMessage(chatGuid, msg);
         await app.markRealtimeEventApplied(e);
         return;
       }

@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mica_go/features/chats/message_display.dart';
+import 'package:mica_go/features/chats/message_render.dart';
 import 'package:mica_go/core/storage/local_cache_store.dart';
 import 'package:mica_go/features/chats/models/chat_summary.dart';
 import 'package:mica_go/features/chats/models/message_model.dart';
@@ -523,36 +525,38 @@ void main() {
     expect(retracted.text, '');
   });
 
-  test(
-    'reaction event updates target message instead of standalone row',
-    () async {
-      await store.upsertMessage(
-        'chat-1',
-        MessageModel.fromJson({
-          'guid': 'target',
-          'chatGuid': 'chat-1',
-          'text': 'hello',
-          'dateCreated': 20,
-        }),
-      );
-      final ok = await store.applyReactionEvent(
-        'chat-1',
-        MessageModel.fromJson({
-          'guid': 'reaction-1',
-          'chatGuid': 'chat-1',
-          'associatedMessageType': 2001,
-          'associatedMessageGuid': 'p:target',
-          'handle': {'id': '+15550001'},
-          'dateCreated': 30,
-        }),
-      );
-      final messages = await store.listMessages('chat-1');
-      expect(ok, isTrue);
-      expect(messages, hasLength(1));
-      expect(messages.single.guid, 'target');
-      expect(messages.single.reactions.single.type, 'like');
-    },
-  );
+  test('cached reaction events merge onto their target after reload', () async {
+    await store.upsertMessage(
+      'chat-1',
+      MessageModel.fromJson({
+        'guid': 'target',
+        'chatGuid': 'chat-1',
+        'text': 'hello',
+        'dateCreated': 20,
+      }),
+    );
+    await store.upsertMessage(
+      'chat-1',
+      MessageModel.fromJson({
+        'guid': 'reaction-1',
+        'chatGuid': 'chat-1',
+        'associatedMessageType': 2006,
+        'associatedMessageEmoji': '🥳',
+        'associatedMessageGuid': 'p:target',
+        'handle': {'id': '+15550001'},
+        'dateCreated': 30,
+      }),
+    );
+    await store.close();
+    store = LocalCacheStore();
+    await store.open();
+    final messages = await store.listMessages('chat-1');
+    expect(messages, hasLength(2));
+    final rows = buildDisplayRows(messages, const MessageDisplayPrefs());
+    expect(rows, hasLength(1));
+    expect(rows.single.message.guid, 'target');
+    expect(activeReactionEmojis(rows.single.reactions), ['🥳']);
+  });
 
   test(
     'sentUnconfirmed survives restart and reconciles with send match',

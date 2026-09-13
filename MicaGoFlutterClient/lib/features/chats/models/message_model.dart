@@ -1,10 +1,4 @@
 /// Client-side message + attachment models for the thread.
-///
-/// Mirrors the MicaGo `Message`/`Attachment` (v0.9 + v0.11.5) JSON, with extra
-/// **optional** fields kept ready for future iMessage features (reactions,
-/// replies) and local-only fields for optimistic sending. The server does not
-/// yet expose reactions/replies or a `chatGuid` on messages — those stay
-/// empty/null and the UI degrades gracefully.
 library;
 
 /// Identifies the underlying file an attachment points at, so duplicate records
@@ -351,48 +345,12 @@ class AttachmentModel {
   };
 }
 
-/// A reaction/tapback — placeholder model only (the server does not surface
-/// these yet, so the list is always empty for now).
-class ReactionModel {
-  final String type;
-  final String? fromHandle;
-  final bool isFromMe;
-  final String? eventGuid;
-  final int? createdAt;
-
-  const ReactionModel({
-    required this.type,
-    this.fromHandle,
-    this.isFromMe = false,
-    this.eventGuid,
-    this.createdAt,
-  });
-
-  factory ReactionModel.fromJson(Map<String, dynamic> json) => ReactionModel(
-    type: (json['type'] as String?) ?? 'custom',
-    fromHandle: json['fromHandle'] as String? ?? json['sender'] as String?,
-    isFromMe: (json['isFromMe'] as bool?) ?? false,
-    eventGuid: json['eventGuid'] as String? ?? json['guid'] as String?,
-    createdAt: json['createdAt'] is num
-        ? (json['createdAt'] as num).toInt()
-        : null,
-  );
-
-  Map<String, dynamic> toJson() => {
-    'type': type,
-    'fromHandle': fromHandle,
-    'isFromMe': isFromMe,
-    'eventGuid': eventGuid,
-    'createdAt': createdAt,
-  };
-}
-
 class MessageModel {
   final String guid;
   final String? text;
   final String? subject;
   final String? service;
-  final String? serviceCategory; // server-normalized: imessage|sms|rcs|unknown
+  final String? serviceCategory; // imessage|sms|rcs|unknown
   final int? dateCreated; // Unix ms
   final int? dateRead;
   final int? dateDelivered;
@@ -409,16 +367,16 @@ class MessageModel {
   final bool isDebugOnly;
   final String? unsupportedReason;
 
-  // Future/optional (empty until the server exposes them):
-  final List<ReactionModel> reactions;
   final String? replyToGuid;
 
   // iMessage compatibility fields (BlueBubbles-compatible). Parsed when the
   // server exposes them. See docs/bluebubbles-compatibility-notes.md.
   final String? chatGuid; // owning chat (also on WS events for routing)
   final int?
-  associatedMessageType; // tapback code: 2000-2005 add / 3000-3005 remove
+  associatedMessageType; // Tapback: 2000-2006 add / 3000-3006 remove.
   final String? associatedMessageGuid; // tapback target (p:/bp: prefixed)
+  final String? associatedMessageEmoji;
+  final int sourceRowId;
   final String? threadOriginatorGuid; // reply target message guid
   final int itemType; // 0 = normal; >0 = service/group event
   final int groupActionType;
@@ -461,11 +419,12 @@ class MessageModel {
     this.renderRecommendation,
     this.isDebugOnly = false,
     this.unsupportedReason,
-    this.reactions = const [],
     this.replyToGuid,
     this.chatGuid,
     this.associatedMessageType,
     this.associatedMessageGuid,
+    this.associatedMessageEmoji,
+    this.sourceRowId = 0,
     this.threadOriginatorGuid,
     this.itemType = 0,
     this.groupActionType = 0,
@@ -522,7 +481,6 @@ class MessageModel {
     int? dateEdited,
     bool? isRetracted,
     bool? isEdited,
-    List<ReactionModel>? reactions,
   }) {
     return MessageModel(
       guid: guid ?? this.guid,
@@ -545,11 +503,12 @@ class MessageModel {
       renderRecommendation: renderRecommendation,
       isDebugOnly: isDebugOnly,
       unsupportedReason: unsupportedReason,
-      reactions: reactions ?? this.reactions,
       replyToGuid: replyToGuid,
       chatGuid: chatGuid ?? this.chatGuid,
       associatedMessageType: associatedMessageType,
       associatedMessageGuid: associatedMessageGuid,
+      associatedMessageEmoji: associatedMessageEmoji,
+      sourceRowId: sourceRowId,
       threadOriginatorGuid: threadOriginatorGuid,
       itemType: itemType,
       groupActionType: groupActionType,
@@ -586,12 +545,6 @@ class MessageModel {
             .where((a) => seenAttachmentKeys.add(_attachmentIdentityKey(a)))
             .toList(growable: false) ??
         const <AttachmentModel>[];
-    final reactions =
-        (json['reactions'] as List?)
-            ?.whereType<Map<String, dynamic>>()
-            .map(ReactionModel.fromJson)
-            .toList(growable: false) ??
-        const <ReactionModel>[];
     return MessageModel(
       guid: (json['guid'] as String?) ?? '',
       text: json['text'] as String?,
@@ -615,11 +568,12 @@ class MessageModel {
       renderRecommendation: json['renderRecommendation'] as String?,
       isDebugOnly: (json['isDebugOnly'] as bool?) ?? false,
       unsupportedReason: json['unsupportedReason'] as String?,
-      reactions: reactions,
       replyToGuid: json['replyToGuid'] as String?,
       chatGuid: json['chatGuid'] as String?,
       associatedMessageType: asInt(json['associatedMessageType']),
       associatedMessageGuid: json['associatedMessageGuid'] as String?,
+      associatedMessageEmoji: json['associatedMessageEmoji'] as String?,
+      sourceRowId: asInt(json['sourceRowId']) ?? 0,
       threadOriginatorGuid: json['threadOriginatorGuid'] as String?,
       itemType: asInt(json['itemType']) ?? 0,
       groupActionType: asInt(json['groupActionType']) ?? 0,
@@ -663,11 +617,12 @@ class MessageModel {
     'renderRecommendation': renderRecommendation,
     'isDebugOnly': isDebugOnly,
     'unsupportedReason': unsupportedReason,
-    'reactions': reactions.map((r) => r.toJson()).toList(),
     'replyToGuid': replyToGuid,
     'chatGuid': chatGuid ?? chatGuidFallback,
     'associatedMessageType': associatedMessageType,
     'associatedMessageGuid': associatedMessageGuid,
+    'associatedMessageEmoji': associatedMessageEmoji,
+    'sourceRowId': sourceRowId,
     'threadOriginatorGuid': threadOriginatorGuid,
     'itemType': itemType,
     'groupActionType': groupActionType,

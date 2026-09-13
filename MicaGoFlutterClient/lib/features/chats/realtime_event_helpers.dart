@@ -19,36 +19,10 @@ String? chatGuidFromWsEvent(WsEvent e) {
   return null;
 }
 
-bool isReactionMessage(MessageModel message) {
-  final t = message.associatedMessageType;
-  if (t == null) return false;
-  return t >= 2000 && t <= 3006 && reactionTargetGuid(message) != null;
-}
+bool isReactionMessage(MessageModel message) => render.isReaction(message);
 
-bool isReactionAdd(MessageModel message) {
-  final t = message.associatedMessageType;
-  if (t == null) return true;
-  return t < 3000;
-}
-
-// Delegates to the single canonical resolver (message_render) so the realtime
-// reaction-merge path strips the same prefixes the display path does (C26).
 String? reactionTargetGuid(MessageModel message) =>
     render.reactionTargetGuid(message.associatedMessageGuid);
-
-String reactionType(MessageModel message) {
-  final t = message.associatedMessageType ?? 2000;
-  final normalized = t >= 3000 ? t - 1000 : t;
-  return switch (normalized) {
-    2000 => 'love',
-    2001 => 'like',
-    2002 => 'dislike',
-    2003 => 'laugh',
-    2004 => 'emphasis',
-    2005 => 'question',
-    _ => 'custom',
-  };
-}
 
 String? realtimeCursorForEvent(WsEvent e) {
   final direct = _cursorFromMap(e.data);

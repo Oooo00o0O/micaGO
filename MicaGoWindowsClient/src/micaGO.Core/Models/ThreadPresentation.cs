@@ -27,6 +27,7 @@ public static class ThreadPresentation
             .ThenBy(row=>row.ChatId,StringComparer.OrdinalIgnoreCase).ThenBy(row=>row.Id,StringComparer.OrdinalIgnoreCase).ToList();
         var byId=raw.Where(row=>!row.IsReaction).GroupBy(row=>(row.ChatId,row.Id)).ToDictionary(group=>group.Key,group=>group.Last());
         var consumed=new HashSet<(string ChatId,string Id)>();
+        var reactionSenders = new Dictionary<(string ChatId, string Id), Dictionary<string, string>>();
         foreach(var associated in raw.Where(row=>row.AssociatedMessageType>0&&!string.IsNullOrWhiteSpace(row.AssociatedMessageGuid)))
         {
             var targetId=Target(associated.AssociatedMessageGuid);var targetKey=(associated.ChatId,targetId??string.Empty);if(targetId is null||!byId.TryGetValue(targetKey,out var target))continue;
@@ -34,9 +35,18 @@ public static class ThreadPresentation
             {
                 byId[targetKey]=target with{Attachments=target.Media.Concat(associated.Media).DistinctBy(item=>item.Id).ToArray()};consumed.Add((associated.ChatId,associated.Id));continue;
             }
-            var emoji=ReactionEmoji(associated.AssociatedMessageType);if(emoji is null)continue;
-            var reactions=(target.Reactions??[]).ToList();if(associated.AssociatedMessageType>=3000)reactions.RemoveAll(value=>value==emoji);else if(!reactions.Contains(emoji))reactions.Add(emoji);
-            byId[targetKey]=target with{Reactions=reactions};consumed.Add((associated.ChatId,associated.Id));
+            if (!associated.IsReaction) continue;
+            var emoji = ReactionEmoji(associated);
+            if (!reactionSenders.TryGetValue(targetKey, out var senders))
+                reactionSenders[targetKey] = senders = new Dictionary<string, string>();
+            var sender = associated.IsOutgoing ? "me" : associated.SenderIdentity ?? associated.SenderName ?? "unknown";
+            if (associated.AssociatedMessageType >= 3000)
+            {
+                if (string.IsNullOrEmpty(emoji) || senders.GetValueOrDefault(sender) == emoji) senders.Remove(sender);
+            }
+            else if (!string.IsNullOrEmpty(emoji)) senders[sender] = emoji;
+            byId[targetKey] = target with { Reactions = senders.Values.ToArray() };
+            consumed.Add((associated.ChatId, associated.Id));
         }
 
         var visible=new List<Message>();
@@ -88,7 +98,7 @@ public static class ThreadPresentation
     private static string SystemLabel(Message row)
     {
         var text=MessageSemantics.VisibleText(row.Text);if(row.IsRetracted||row.SemanticKind is "missing_attachment_rows" or "empty_edited_residue")return row.IsOutgoing?"You unsent a message":$"{DisplaySender(row)} unsent a message";
-        if(row.IsServiceEvent)return text.Length>0?text:"Conversation event";if(row.IsReaction){var emoji=ReactionEmoji(row.AssociatedMessageType)??"";return row.AssociatedMessageType>=3000?$"Removed a {emoji} reaction":$"{emoji} Reacted to a message";}
+        if(row.IsServiceEvent)return text.Length>0?text:"Conversation event";if(row.IsReaction){var emoji=ReactionEmoji(row)??"";return row.AssociatedMessageType>=3000?$"Removed a {emoji} reaction":$"{emoji} Reacted to a message";}
         return row.SemanticKind=="deleted"?"Message deleted":row.SemanticKind=="unavailable"?"Message unavailable":"Unsupported message";
     }
     private static string ReplyLabel(Message row){var sender=row.IsOutgoing?"You":DisplaySender(row);var text=MessageSemantics.VisibleText(row.Text);return $"{sender}: {(text.Length>0?text:row.AttachmentLabel??"Attachment")}";}
@@ -99,7 +109,11 @@ public static class ThreadPresentation
     /// <summary>Normalises an associated/reply guid ("p:0/GUID", "bp:GUID") to the bare message guid.</summary>
     public static string? NormalizeTarget(string? value){var raw=value?.Trim();if(string.IsNullOrEmpty(raw))return null;if(raw.StartsWith("p:",StringComparison.Ordinal)||raw.StartsWith("bp:",StringComparison.Ordinal))raw=raw[(raw.IndexOf(':')+1)..];var slash=raw.IndexOf('/');if(slash>=0)raw=raw[(slash+1)..];return raw.TrimStart('+');}
     private static string? Target(string? value)=>NormalizeTarget(value);
-    private static string? ReactionEmoji(int code)=>(code%1000) switch{0=>"❤️",1=>"👍",2=>"👎",3=>"😂",4=>"‼️",5=>"❓",_=>null};
+    private static string? ReactionEmoji(Message message) => !message.IsReaction ? null : (message.AssociatedMessageType % 1000) switch
+    {
+        0 => "❤️", 1 => "👍", 2 => "👎", 3 => "😂", 4 => "‼️", 5 => "❓",
+        6 => message.AssociatedMessageEmoji?.Trim(), _ => null
+    };
     private static string? Effect(string? id)=>string.IsNullOrWhiteSpace(id)?null:Effects.GetValueOrDefault(id,"Sent with an effect");
     private static bool IsBigEmoji(string text){if(string.IsNullOrWhiteSpace(text))return false;var elements=StringInfo.GetTextElementEnumerator(text);var count=0;while(elements.MoveNext()){var element=elements.GetTextElement();if(string.IsNullOrWhiteSpace(element))continue;count++;if(count>3||!element.EnumerateRunes().Any(r=>r.Value is >=0x1F000 and <=0x1FAFF or >=0x2600 and <=0x27BF or >=0x1F1E6 and <=0x1F1FF or 0xE50A))return false;}return count is>=1 and<=3;}
     private static string Timestamp(DateTime value,string language){var culture=language switch{"zh-Hans"=>CultureInfo.GetCultureInfo("zh-CN"),"zh-Hant"=>CultureInfo.GetCultureInfo("zh-TW"),_=>CultureInfo.CurrentCulture};var time=value.ToString("t",culture);var days=(DateTime.Today-value.Date).Days;if(days<=0)return time;if(days==1)return (language.StartsWith("zh",StringComparison.Ordinal)?"昨天 ":"Yesterday ")+time;if(days<7)return value.ToString("dddd",culture)+" "+time;return value.ToString("d",culture)+" "+time;}

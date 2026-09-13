@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mica_go/features/chats/message_display.dart';
 import 'package:mica_go/features/chats/message_render.dart';
 import 'package:mica_go/features/chats/store/message_collection.dart';
 import 'package:mica_go/features/chats/models/message_model.dart';
@@ -101,38 +102,37 @@ void main() {
       expect(c.applyUnsend('missing', 300), isFalse);
     });
 
-    test('reaction event updates target instead of adding standalone row', () {
+    test('raw reaction events render immediately on their target', () {
       final c = MessageCollection();
       c.upsertServer(_server(guid: 'target', text: 'hi', dateCreated: 100));
-      expect(
-        c.applyReactionEvent(
-          targetGuid: 'target',
-          reaction: const ReactionModel(
-            type: 'like',
-            fromHandle: '+15550001',
-            isFromMe: false,
-            eventGuid: 'reaction-1',
-          ),
-          add: true,
+      c.upsertServer(
+        const MessageModel(
+          guid: 'reaction',
+          isFromMe: false,
+          dateCreated: 200,
+          associatedMessageGuid: 'p:0/target',
+          associatedMessageType: 2006,
+          associatedMessageEmoji: '🥳',
+          handleId: 'alice',
         ),
-        isTrue,
       );
-      expect(c.length, 1);
-      expect(c.serverByGuid('target')!.reactions.single.type, 'like');
-
-      expect(
-        c.applyReactionEvent(
-          targetGuid: 'target',
-          reaction: const ReactionModel(
-            type: 'like',
-            fromHandle: '+15550001',
-            isFromMe: false,
-          ),
-          add: false,
+      final rows = buildDisplayRows(c.ordered, const MessageDisplayPrefs());
+      expect(rows, hasLength(1));
+      expect(activeReactionEmojis(rows.single.reactions), ['🥳']);
+      c.upsertServer(
+        const MessageModel(
+          guid: 'removal',
+          isFromMe: false,
+          dateCreated: 300,
+          associatedMessageGuid: 'p:0/target',
+          associatedMessageType: 3006,
+          associatedMessageEmoji: '🥳',
+          handleId: 'alice',
         ),
-        isTrue,
       );
-      expect(c.serverByGuid('target')!.reactions, isEmpty);
+      final updated = buildDisplayRows(c.ordered, const MessageDisplayPrefs());
+      expect(updated, hasLength(1));
+      expect(activeReactionEmojis(updated.single.reactions), isEmpty);
     });
   });
 

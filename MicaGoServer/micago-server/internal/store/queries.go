@@ -75,8 +75,38 @@ func buildSyncMessagesSQL(present []string, hasAccount bool, extraWhere, tail st
 			cols = append(cols, accountExpr)
 		}
 	}
+	fromWhere := syncMessagesFromWhere
+	for _, col := range present {
+		if col == "associated_message_type" {
+			fromWhere = strings.Replace(fromWhere, "m.cache_has_attachments = 1)", "m.cache_has_attachments = 1 OR m.associated_message_type BETWEEN 2000 AND 2006 OR m.associated_message_type BETWEEN 3000 AND 3006)", 1)
+		}
+	}
 	return "SELECT DISTINCT\n  " + strings.Join(cols, ",\n  ") +
-		semanticSelectFragment(present) + syncMessagesFromWhere + extraWhere + tail
+		semanticSelectFragment(present) + fromWhere + extraWhere + tail
+}
+
+func (q *Queries) ListSyncCustomReactions(ctx context.Context, afterRowID int64, limit int) ([]SyncMessageRow, error) {
+	if !q.messageColumns["associated_message_emoji"] {
+		return nil, nil
+	}
+	present := presentSemanticColumns(q.messageColumns)
+	sqlText := buildSyncMessagesSQL(present, q.messageColumns["account"], " AND m.ROWID > ? AND m.associated_message_type IN (2006, 3006)\n", "ORDER BY m.ROWID ASC LIMIT ?")
+	rows, err := q.db.QueryContext(ctx, sqlText, afterRowID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var messages []SyncMessageRow
+	for rows.Next() {
+		row, sem, err := scanSyncRowSemantic(rows, present)
+		if err != nil {
+			return nil, err
+		}
+		if message, ok := syncMessageFromRow(row, sem); ok {
+			messages = append(messages, message)
+		}
+	}
+	return messages, rows.Err()
 }
 
 // scanSyncRowSemantic scans the base sync columns plus the present semantic
@@ -107,6 +137,7 @@ func scanSyncRowSemantic(rows *sql.Rows, present []string) (MessageRow, semantic
 func applySemantic(m *SyncMessageRow, s semanticValues) {
 	m.AssociatedMessageType = s.AssociatedType
 	m.AssociatedMessageGUID = s.AssociatedGUID
+	m.AssociatedMessageEmoji = s.AssociatedEmoji
 	m.ThreadOriginatorGUID = s.ThreadOriginatorGUID
 	m.ItemType = s.ItemType
 	m.GroupActionType = s.GroupActionType
@@ -121,9 +152,6 @@ func syncMessageFromRow(row MessageRow, sem semanticValues) (SyncMessageRow, boo
 		return SyncMessageRow{}, false
 	}
 	text := ExtractMessageText(row.Text, row.AttributedBody)
-	if !MessageHasRenderableContent(text, row.CacheHasAttachments) {
-		return SyncMessageRow{}, false
-	}
 	msg := SyncMessageRow{
 		ChatGUID:            *row.ChatGUID,
 		SourceRowID:         derefInt64(row.SourceRowID),
@@ -144,6 +172,9 @@ func syncMessageFromRow(row MessageRow, sem semanticValues) (SyncMessageRow, boo
 		HasAttributedBody:   len(row.AttributedBody) > 0,
 	}
 	applySemantic(&msg, sem)
+	if !MessageHasRenderableContent(text, row.CacheHasAttachments) && !IsReactionForSyncRow(msg) {
+		return SyncMessageRow{}, false
+	}
 	return msg, true
 }
 
@@ -165,6 +196,7 @@ func (q *Queries) SetMessageColumns(cols map[string]bool) { q.messageColumns = c
 var semanticMessageColumns = []string{
 	"associated_message_type",
 	"associated_message_guid",
+	"associated_message_emoji",
 	"thread_originator_guid",
 	"item_type",
 	"group_action_type",
@@ -178,6 +210,7 @@ var semanticMessageColumns = []string{
 type semanticValues struct {
 	AssociatedType        *int64
 	AssociatedGUID        *string
+	AssociatedEmoji       *string
 	ThreadOriginatorGUID  *string
 	ItemType              *int64
 	GroupActionType       *int64
@@ -217,7 +250,7 @@ func semanticScanTargets(present []string) (targets []any, finalize func() seman
 	var payload []byte
 	for _, name := range present {
 		switch name {
-		case "associated_message_guid", "thread_originator_guid", "group_title",
+		case "associated_message_guid", "associated_message_emoji", "thread_originator_guid", "group_title",
 			"balloon_bundle_id", "expressive_send_style_id":
 			h := &sql.NullString{}
 			strH[name] = h
@@ -236,6 +269,7 @@ func semanticScanTargets(present []string) (targets []any, finalize func() seman
 			ItemType:              nullInt(intH["item_type"]),
 			GroupActionType:       nullInt(intH["group_action_type"]),
 			AssociatedGUID:        nullStr(strH["associated_message_guid"]),
+			AssociatedEmoji:       nullStr(strH["associated_message_emoji"]),
 			ThreadOriginatorGUID:  nullStr(strH["thread_originator_guid"]),
 			GroupTitle:            nullStr(strH["group_title"]),
 			BalloonBundleID:       nullStr(strH["balloon_bundle_id"]),

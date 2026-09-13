@@ -118,7 +118,7 @@
                         <Border.RenderTransform>
                             <TranslateTransform Y="-10" />
                         </Border.RenderTransform>
-                        <TextBlock x:Name="ReactionText" FontSize="13" />
+                        <RichTextBlock x:Name="ReactionText" FontSize="13" IsTextSelectionEnabled="False" />
                     </Border>
 
                     <Border x:Name="UploadDim"

@@ -3,8 +3,7 @@ import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
-import '../../features/chats/message_render.dart'
-    show messagePreviewText, reactionTargetGuid;
+import '../../features/chats/message_render.dart' show messagePreviewText;
 import '../../features/chats/models/chat_summary.dart';
 import '../../features/chats/models/message_model.dart';
 import '../../features/chats/store/message_collection.dart'
@@ -663,41 +662,6 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
     await upsertMessage(chatGuid, msg);
   }
 
-  Future<bool> applyReactionEvent(String chatGuid, MessageModel event) async {
-    final targetGuid = reactionTargetGuid(event.associatedMessageGuid);
-    if (targetGuid == null) return false;
-    final db = await _ready();
-    final rows = await db.query(
-      'messages',
-      where: 'guid = ?',
-      whereArgs: [targetGuid],
-      limit: 1,
-    );
-    if (rows.isEmpty) return false;
-    final target = _messageFromRow(rows.first);
-    final reaction = ReactionModel(
-      type: _reactionType(event),
-      fromHandle: event.handleId,
-      isFromMe: event.isFromMe,
-      eventGuid: event.guid,
-      createdAt: event.dateCreated,
-    );
-    final filtered = target.reactions
-        .where(
-          (r) =>
-              !(r.type == reaction.type &&
-                  r.fromHandle == reaction.fromHandle &&
-                  r.isFromMe == reaction.isFromMe),
-        )
-        .toList(growable: true);
-    final next = target.copyWith(
-      reactions: _isReactionAdd(event) ? [...filtered, reaction] : filtered,
-      localState: LocalSendState.confirmed,
-    );
-    await upsertMessage(chatGuid, next);
-    return true;
-  }
-
   Future<void> writeMetadata(String key, String value) async {
     final db = await _ready();
     await db.insert('metadata', {
@@ -932,26 +896,6 @@ ORDER BY COALESCE(m.date_created, 0) DESC, hm.guid ASC
 
   String _previewForMessage(MessageModel message) {
     return messagePreviewText(message);
-  }
-
-  bool _isReactionAdd(MessageModel message) {
-    final t = message.associatedMessageType;
-    if (t == null) return true;
-    return t < 3000;
-  }
-
-  String _reactionType(MessageModel message) {
-    final t = message.associatedMessageType ?? 2000;
-    final normalized = t >= 3000 ? t - 1000 : t;
-    return switch (normalized) {
-      2000 => 'love',
-      2001 => 'like',
-      2002 => 'dislike',
-      2003 => 'laugh',
-      2004 => 'emphasis',
-      2005 => 'question',
-      _ => 'custom',
-    };
   }
 }
 

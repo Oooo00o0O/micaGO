@@ -131,6 +131,7 @@ func (db *DB) Migrate() error {
 		{"has_attributed_body", "INTEGER"},
 		{"associated_message_type", "INTEGER"},
 		{"associated_message_guid", "TEXT"},
+		{"associated_message_emoji", "TEXT"},
 		{"thread_originator_guid", "TEXT"},
 		{"item_type", "INTEGER"},
 		{"group_action_type", "INTEGER"},

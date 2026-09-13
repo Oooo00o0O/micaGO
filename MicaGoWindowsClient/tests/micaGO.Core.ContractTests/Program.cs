@@ -21,6 +21,7 @@ var tests = new (string Name, Action Run)[]
     ("vCard folded and escaped contacts", ParsesVCardContacts),
     ("private and group presentation", PresentsPrivateAndGroupThreads),
     ("reaction and system merging", MergesReactionAndSystemRows),
+    ("custom emoji reactions and sender-scoped removal", CustomReactionTests.Run),
     ("Twemoji flag-only segmentation", SegmentsOnlyFlagEmoji),
     ("Twemoji Emoji 17 fallback segmentation", SegmentsEmoji17Fallback),
     ("native Windows device registration", BuildsWindowsDeviceRegistration),

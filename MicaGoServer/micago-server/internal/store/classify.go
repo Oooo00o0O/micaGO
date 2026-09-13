@@ -190,23 +190,24 @@ func debugAsMessageJSON(m DebugMessageJSON) MessageJSON {
 		})
 	}
 	return MessageJSON{
-		GUID:                  m.GUID,
-		Text:                  m.Text,
-		CacheHasAttachments:   m.CacheHasAttachments,
-		Attachments:           attachments,
-		HasAttributedBody:     m.HasAttributedBody,
-		AssociatedMessageType: m.AssociatedMessageType,
-		AssociatedMessageGUID: m.AssociatedMessageGUID,
-		ThreadOriginatorGUID:  m.ThreadOriginatorGUID,
-		ItemType:              m.ItemType,
-		GroupActionType:       m.GroupActionType,
-		GroupTitle:            m.GroupTitle,
-		BalloonBundleID:       m.BalloonBundleID,
-		ExpressiveSendStyleID: m.ExpressiveSendStyleID,
-		DateRetracted:         m.DateRetracted,
-		DateEdited:            m.DateEdited,
-		IsRetracted:           m.IsRetracted,
-		IsEdited:              m.IsEdited,
+		GUID:                   m.GUID,
+		Text:                   m.Text,
+		CacheHasAttachments:    m.CacheHasAttachments,
+		Attachments:            attachments,
+		HasAttributedBody:      m.HasAttributedBody,
+		AssociatedMessageType:  m.AssociatedMessageType,
+		AssociatedMessageGUID:  m.AssociatedMessageGUID,
+		AssociatedMessageEmoji: m.AssociatedMessageEmoji,
+		ThreadOriginatorGUID:   m.ThreadOriginatorGUID,
+		ItemType:               m.ItemType,
+		GroupActionType:        m.GroupActionType,
+		GroupTitle:             m.GroupTitle,
+		BalloonBundleID:        m.BalloonBundleID,
+		ExpressiveSendStyleID:  m.ExpressiveSendStyleID,
+		DateRetracted:          m.DateRetracted,
+		DateEdited:             m.DateEdited,
+		IsRetracted:            m.IsRetracted,
+		IsEdited:               m.IsEdited,
 	}
 }
 
@@ -247,7 +248,7 @@ func IsReactionForSyncRow(r SyncMessageRow) bool {
 		return false
 	}
 	t := *r.AssociatedMessageType
-	if t < 2000 || t > 3006 {
+	if !(t >= 2000 && t <= 2006 || t >= 3000 && t <= 3006) {
 		return false
 	}
 	return r.AssociatedMessageGUID != nil && strings.TrimSpace(*r.AssociatedMessageGUID) != ""
@@ -259,17 +260,18 @@ func IsReactionForSyncRow(r SyncMessageRow) bool {
 // so it is safe to compute at sync time. Used to persist is_debug_only.
 func DebugOnlyForSyncRow(r SyncMessageRow) bool {
 	m := MessageJSON{
-		Text:                  r.Text,
-		HasAttributedBody:     r.HasAttributedBody,
-		CacheHasAttachments:   r.CacheHasAttachments,
-		AssociatedMessageType: r.AssociatedMessageType,
-		AssociatedMessageGUID: r.AssociatedMessageGUID,
-		ThreadOriginatorGUID:  r.ThreadOriginatorGUID,
-		ItemType:              r.ItemType,
-		GroupActionType:       r.GroupActionType,
-		GroupTitle:            r.GroupTitle,
-		BalloonBundleID:       r.BalloonBundleID,
-		ExpressiveSendStyleID: r.ExpressiveSendStyleID,
+		Text:                   r.Text,
+		HasAttributedBody:      r.HasAttributedBody,
+		CacheHasAttachments:    r.CacheHasAttachments,
+		AssociatedMessageType:  r.AssociatedMessageType,
+		AssociatedMessageGUID:  r.AssociatedMessageGUID,
+		AssociatedMessageEmoji: r.AssociatedMessageEmoji,
+		ThreadOriginatorGUID:   r.ThreadOriginatorGUID,
+		ItemType:               r.ItemType,
+		GroupActionType:        r.GroupActionType,
+		GroupTitle:             r.GroupTitle,
+		BalloonBundleID:        r.BalloonBundleID,
+		ExpressiveSendStyleID:  r.ExpressiveSendStyleID,
 	}
 	_, _, isDebugOnly, _ := ClassifyMessageJSON(m)
 	return isDebugOnly
@@ -284,7 +286,7 @@ func ClassifyMessageJSON(m MessageJSON) (semanticKind, renderRecommendation stri
 	switch {
 	case m.IsRetracted || m.DateRetracted != nil:
 		return SemanticKindRetracted, RenderRecommendationSystem, false, UnsupportedReasonNone
-	case m.AssociatedMessageType != nil && *m.AssociatedMessageType >= 2000 && *m.AssociatedMessageType <= 3005 &&
+	case m.AssociatedMessageType != nil && (*m.AssociatedMessageType >= 2000 && *m.AssociatedMessageType <= 2006 || *m.AssociatedMessageType >= 3000 && *m.AssociatedMessageType <= 3006) &&
 		m.AssociatedMessageGUID != nil && strings.TrimSpace(*m.AssociatedMessageGUID) != "":
 		return SemanticKindTapback, RenderRecommendationMerge, false, UnsupportedReasonNone
 	case m.AssociatedMessageType != nil && *m.AssociatedMessageType == 1000 &&

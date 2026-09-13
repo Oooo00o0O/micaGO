@@ -315,7 +315,7 @@ class ThreadPresentationBuilder {
       case MessageRenderableKind.reaction:
         final t = tapbackFromCode(m.associatedMessageType);
         if (t == null) return 'Reacted to a message';
-        final emoji = tapbackEmoji(t.kind);
+        final emoji = reactionEmoji(m);
         return t.isRemoval
             ? 'Removed a $emoji reaction'
             : '$emoji Reacted to a message';

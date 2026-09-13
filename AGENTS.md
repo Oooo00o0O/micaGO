@@ -25,6 +25,8 @@ Four components:
 
 ## Known UI/state notes
 
+- **Custom reactions:** `associatedMessageEmoji` carries chat.db custom Tapbacks (2006/3006) through relay, cache and both clients. Empty-text reaction rows remain syncable; a separate rowid cursor backfills custom reactions without advancing the main message watermark. Chips apply additions/removals per sender. Windows reaction chips share the rich-text emoji renderer with message bodies.
+
 - **Late send confirmation:** transport timeouts remain awaiting confirmation; explicit rejections remain failed. Flutter confirms cache rows transactionally in `send_confirmations`, ignores stale pending snapshots, and removes the old cache row before manual retry. Windows matches identity-qualified failed sends, clears persisted uploads on confirmation, and updates completed uploads without reinserting them. Interrupted uploads await confirmation rather than automatically resending. Tests: `late_send_confirmation_test.dart`, `LateSendConfirmationTests.cs`.
 
 - **Hidden chats (0.71.0):** `/api/chat-preferences` owns route-GUID visibility, independently of Sync Control. Atomic revision-checked batches and persistent mutation IDs drive Flutter, Windows, and Companion outboxes. Hidden chats keep syncing, suppress notifications, and remain hidden until restored. Legacy local records require explicit import. Cache clearing and settings backups must preserve/exclude preference outboxes respectively. Tests: Go `chat_preferences_test.go`, Flutter `chat_preference_sync_test.dart`, Windows `ChatPreferenceSyncTests.cs`.

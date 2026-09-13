@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mica_go/features/chats/message_render.dart';
 import 'package:mica_go/core/network/websocket_client.dart';
 import 'package:mica_go/features/chats/models/message_model.dart';
 import 'package:mica_go/features/chats/realtime_event_helpers.dart' as rt;
@@ -133,9 +134,9 @@ void main() {
       });
       expect(rt.isReactionMessage(add), isTrue);
       expect(rt.reactionTargetGuid(add), 'target');
-      expect(rt.reactionType(add), 'like');
-      expect(rt.isReactionAdd(add), isTrue);
-      expect(rt.isReactionAdd(remove), isFalse);
+      expect(reactionEmoji(add), '👍');
+      expect(tapbackFromCode(add.associatedMessageType)?.isRemoval, isFalse);
+      expect(tapbackFromCode(remove.associatedMessageType)?.isRemoval, isTrue);
       expect(rt.reactionTargetGuid(remove), 'target');
     });
   });

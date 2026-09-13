@@ -236,7 +236,7 @@ const relayMessageSelect = `
 SELECT m.guid, m.text, m.subject, m.service, m.account, m.date_created, m.date_read, m.date_delivered,
        m.is_from_me, m.is_read, m.is_delivered, m.handle_id, m.handle_service, m.cache_has_attachments,
        m.chat_guid, COALESCE(m.has_attributed_body, 0),
-       m.associated_message_type, m.associated_message_guid, m.thread_originator_guid,
+       m.associated_message_type, m.associated_message_guid, m.associated_message_emoji, m.thread_originator_guid,
        m.item_type, m.group_action_type, m.group_title, m.balloon_bundle_id,
        m.expressive_send_style_id, m.payload_data_present,
        ms.date_edited, ms.date_retracted, ms.error, m.source_rowid
@@ -602,6 +602,7 @@ func scanRelayMessages(rows *sql.Rows) ([]store.MessageJSON, error) {
 			&hasAttributedBody,
 			&message.AssociatedMessageType,
 			&message.AssociatedMessageGUID,
+			&message.AssociatedMessageEmoji,
 			&message.ThreadOriginatorGUID,
 			&message.ItemType,
 			&message.GroupActionType,

@@ -105,14 +105,15 @@ func TestSemanticFieldsRoundTripThroughRelay(t *testing.T) {
 		},
 		messages: []store.SyncMessageRow{
 			{
-				ChatGUID:              "chatA",
-				SourceRowID:           10,
-				GUID:                  "m-react",
-				Text:                  strp("loved"),
-				DateCreated:           intp(1000),
-				AssociatedMessageType: intp(2000),
-				AssociatedMessageGUID: strp("p:0/m-target"),
-				PayloadDataPresent:    true,
+				ChatGUID:               "chatA",
+				SourceRowID:            10,
+				GUID:                   "m-react",
+				Text:                   strp("loved"),
+				DateCreated:            intp(1000),
+				AssociatedMessageType:  intp(2006),
+				AssociatedMessageEmoji: strp("👩‍💻"),
+				AssociatedMessageGUID:  strp("p:0/m-target"),
+				PayloadDataPresent:     true,
 			},
 			{
 				ChatGUID:             "chatA",
@@ -149,8 +150,11 @@ func TestSemanticFieldsRoundTripThroughRelay(t *testing.T) {
 	if react.SemanticKind != store.SemanticKindTapback || react.RenderRecommendation != store.RenderRecommendationMerge {
 		t.Fatalf("reaction classification = %q/%q", react.SemanticKind, react.RenderRecommendation)
 	}
-	if react.AssociatedMessageType == nil || *react.AssociatedMessageType != 2000 {
-		t.Fatalf("associatedMessageType = %v, want 2000", react.AssociatedMessageType)
+	if react.AssociatedMessageType == nil || *react.AssociatedMessageType != 2006 {
+		t.Fatalf("associatedMessageType = %v, want 2006", react.AssociatedMessageType)
+	}
+	if react.AssociatedMessageEmoji == nil || *react.AssociatedMessageEmoji != "👩‍💻" {
+		t.Fatalf("associatedMessageEmoji = %v", react.AssociatedMessageEmoji)
 	}
 	if react.AssociatedMessageGUID == nil || *react.AssociatedMessageGUID != "p:0/m-target" {
 		t.Fatalf("associatedMessageGuid = %v", react.AssociatedMessageGUID)

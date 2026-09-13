@@ -22,6 +22,10 @@ type perChatSource interface {
 	ListSyncRecentMessagesForChat(ctx context.Context, chatGUID string, limit int) ([]store.SyncMessageRow, error)
 }
 
+type customReactionSource interface {
+	ListSyncCustomReactions(context.Context, int64, int) ([]store.SyncMessageRow, error)
+}
+
 // byDateSource is an optional capability: a sync source that can scan a bounded
 // date window (C11). The live chat.db source implements it; lightweight test
 // fakes need not.
@@ -116,6 +120,34 @@ func SyncOnce(ctx context.Context, source syncSource, relay *DB, limit int, look
 		}
 	}
 
+	watermarkMessages := messages
+	var reactionCursor int64
+	if reactions, ok := source.(customReactionSource); ok {
+		value, _, readErr := relay.GetSyncState("custom_reaction_rowid")
+		if readErr != nil {
+			return SyncResult{}, readErr
+		}
+		if value != "" {
+			reactionCursor, err = strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return SyncResult{}, err
+			}
+		}
+		rows, readErr := reactions.ListSyncCustomReactions(ctx, reactionCursor, limit)
+		if readErr != nil {
+			return SyncResult{}, readErr
+		}
+		messages = unionByGUID(messages, rows)
+		for _, row := range rows {
+			if row.SourceRowID > reactionCursor {
+				reactionCursor = row.SourceRowID
+			}
+		}
+		if len(rows) < limit && previousLastRowID > reactionCursor {
+			reactionCursor = previousLastRowID
+		}
+	}
+
 	// v0.11.3: evaluate sync rules. Blocked messages are NOT inserted/broadcast/
 	// pushed, but the rowid watermark below still advances over the FULL set so
 	// blocked messages are not re-scanned forever.
@@ -191,7 +223,7 @@ func SyncOnce(ctx context.Context, source syncSource, relay *DB, limit int, look
 			result.RenderableRowsInserted++
 		}
 	}
-	for _, message := range messages {
+	for _, message := range watermarkMessages {
 		if message.SourceRowID > result.NewLastMessageRowID {
 			result.NewLastMessageRowID = message.SourceRowID
 			result.LastMessageGUID = message.GUID
@@ -220,6 +252,11 @@ func SyncOnce(ctx context.Context, source syncSource, relay *DB, limit int, look
 		}
 	}
 
+	if reactionCursor > 0 {
+		if err := setSyncStateTx(tx, "custom_reaction_rowid", strconv.FormatInt(reactionCursor, 10)); err != nil {
+			return SyncResult{}, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return SyncResult{}, err
 	}
@@ -406,10 +443,10 @@ func upsertMessagesTx(tx *sql.Tx, messages []store.SyncMessageRow, createdAt int
 INSERT INTO messages (
 	guid, chat_guid, source_rowid, text, subject, service, account, date_created, date_read, date_delivered,
 	is_from_me, is_read, is_delivered, handle_id, handle_service, cache_has_attachments, created_at,
-	has_attributed_body, associated_message_type, associated_message_guid, thread_originator_guid, item_type,
+	has_attributed_body, associated_message_type, associated_message_guid, associated_message_emoji, thread_originator_guid, item_type,
 	group_action_type, group_title, balloon_bundle_id, expressive_send_style_id, payload_data_present,
 	is_debug_only, is_reaction
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(guid) DO UPDATE SET
 	chat_guid = excluded.chat_guid,
 	source_rowid = excluded.source_rowid,
@@ -429,6 +466,7 @@ ON CONFLICT(guid) DO UPDATE SET
 	has_attributed_body = excluded.has_attributed_body,
 	associated_message_type = excluded.associated_message_type,
 	associated_message_guid = excluded.associated_message_guid,
+	associated_message_emoji = excluded.associated_message_emoji,
 	thread_originator_guid = excluded.thread_originator_guid,
 	item_type = excluded.item_type,
 	group_action_type = excluded.group_action_type,
@@ -456,6 +494,7 @@ WHERE messages.chat_guid IS NOT excluded.chat_guid
 	OR messages.has_attributed_body IS NOT excluded.has_attributed_body
 	OR messages.associated_message_type IS NOT excluded.associated_message_type
 	OR messages.associated_message_guid IS NOT excluded.associated_message_guid
+	OR messages.associated_message_emoji IS NOT excluded.associated_message_emoji
 	OR messages.thread_originator_guid IS NOT excluded.thread_originator_guid
 	OR messages.item_type IS NOT excluded.item_type
 	OR messages.group_action_type IS NOT excluded.group_action_type
@@ -497,6 +536,7 @@ WHERE messages.chat_guid IS NOT excluded.chat_guid
 			boolToInt(message.HasAttributedBody),
 			message.AssociatedMessageType,
 			message.AssociatedMessageGUID,
+			message.AssociatedMessageEmoji,
 			message.ThreadOriginatorGUID,
 			message.ItemType,
 			message.GroupActionType,

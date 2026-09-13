@@ -573,7 +573,8 @@ public sealed partial class MessageBubble : UserControl
         var reactions = message.Reactions ?? [];
         var visible = reactions.Count > 0;
         ReactionChip.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        ReactionText.Text = string.Join(" ", reactions);
+        FlagEmojiTextRenderer.SetText(ReactionText, string.Join(" ", reactions), 13,
+            AppServices.Current.Appearance.TwemojiFlagsEnabled);
         // The chip overlays the bubble's top corner on the side opposite the
         // sender, exactly like the Flutter client's _ReactionChips placement.
         ReactionChip.HorizontalAlignment = outgoing ? HorizontalAlignment.Left : HorizontalAlignment.Right;
