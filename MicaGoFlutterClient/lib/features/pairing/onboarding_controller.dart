@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/models/connection_profile.dart';
 import 'endpoint_selection.dart';
 import 'pairing_payload.dart';
+import '../../core/l10n/app_localizations.dart';
 
 enum OnboardingPhase {
   idle,
@@ -50,9 +51,9 @@ class OnboardingController extends ChangeNotifier {
 
   OnboardingController({required this.prober, required this.runInitialSync});
 
-  OnboardingStatus status = const OnboardingStatus(
+  OnboardingStatus status = OnboardingStatus(
     OnboardingPhase.idle,
-    'Ready to connect.',
+    MicaLocalizations.current.t('pair.readyToConnect'),
   );
 
   /// The active endpoint chosen during testing (null until connected).
@@ -78,9 +79,9 @@ class OnboardingController extends ChangeNotifier {
     final order = endpointTryOrder(mode, payload.endpoints);
     if (order.isEmpty) {
       _set(
-        const OnboardingStatus(
+        OnboardingStatus(
           OnboardingPhase.failed,
-          'No endpoints to try for this mode.',
+          MicaLocalizations.current.t('pair.noEndpoints'),
         ),
       );
       return null;
@@ -91,7 +92,9 @@ class OnboardingController extends ChangeNotifier {
       _set(
         OnboardingStatus(
           isLan ? OnboardingPhase.testingLan : OnboardingPhase.testingPublic,
-          isLan ? 'Testing LAN…' : 'LAN unavailable — trying Public…',
+          MicaLocalizations.current.t(
+            isLan ? 'pair.testingLan' : 'pair.tryingPublic',
+          ),
           activeKind: endpoint.kind,
         ),
       );
@@ -101,7 +104,9 @@ class OnboardingController extends ChangeNotifier {
         _set(
           OnboardingStatus(
             OnboardingPhase.connected,
-            isLan ? 'LAN connected.' : 'Public connected.',
+            MicaLocalizations.current.t(
+              isLan ? 'pair.lanConnected' : 'pair.publicConnected',
+            ),
             activeKind: endpoint.kind,
           ),
         );
@@ -114,8 +119,8 @@ class OnboardingController extends ChangeNotifier {
         OnboardingStatus(
           OnboardingPhase.failed,
           mode == ConnectionMode.lanOnly
-              ? 'Could not reach the server on your LAN. Check Wi-Fi and the chosen LAN address, then retry.'
-              : 'Could not reach the server on LAN or Public.',
+              ? MicaLocalizations.current.t('pair.lanUnreachable')
+              : MicaLocalizations.current.t('pair.unreachable'),
         ),
       );
       return null;
@@ -126,7 +131,12 @@ class OnboardingController extends ChangeNotifier {
     final profile = _profileFor(payload, mode, activeEndpoint!);
     resultProfile = profile;
 
-    _set(const OnboardingStatus(OnboardingPhase.syncing, 'Syncing chats…'));
+    _set(
+      OnboardingStatus(
+        OnboardingPhase.syncing,
+        MicaLocalizations.current.t('pair.syncing'),
+      ),
+    );
     try {
       await runInitialSync(profile, (msg) {
         _set(
@@ -141,7 +151,7 @@ class OnboardingController extends ChangeNotifier {
       _set(
         OnboardingStatus(
           OnboardingPhase.done,
-          'Connected. Initial sync will retry in the background.',
+          MicaLocalizations.current.t('pair.connectedSyncLater'),
           activeKind: activeEndpoint!.kind,
         ),
       );
@@ -150,7 +160,7 @@ class OnboardingController extends ChangeNotifier {
     _set(
       OnboardingStatus(
         OnboardingPhase.done,
-        'Sync complete.',
+        MicaLocalizations.current.t('pair.syncComplete'),
         activeKind: activeEndpoint!.kind,
       ),
     );

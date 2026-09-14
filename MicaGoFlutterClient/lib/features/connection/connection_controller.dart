@@ -4,6 +4,7 @@ import '../../core/app_controller.dart';
 import '../../core/models/connection_profile.dart';
 import '../../core/models/server_urls.dart';
 import '../../core/network/api_client.dart';
+import '../../core/l10n/app_localizations.dart';
 
 enum TestState { idle, testing, success, failure }
 
@@ -36,7 +37,7 @@ class ConnectionController extends ChangeNotifier {
         urlsPreview = null;
       }
       state = TestState.success;
-      message = 'Connected. Server is reachable and the token was accepted.';
+      message = MicaLocalizations.current.t('pair.connectedOk');
     } on ApiException catch (e) {
       state = TestState.failure;
       message = e.friendly;

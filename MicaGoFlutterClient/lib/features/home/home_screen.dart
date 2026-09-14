@@ -76,7 +76,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void _onIncomingShare() {
     final payload = IncomingShareService.latest.value;
     if (!mounted || payload == null) return;
-    TopBanner.show(context, 'Shared to micaGO: ${payload.summary}');
+    TopBanner.show(
+      context,
+      MicaLocalizations.of(
+        context,
+      ).t('chat.sharedTo').replaceAll('{summary}', payload.summary),
+    );
     IncomingShareService.clear();
   }
 
@@ -260,83 +265,87 @@ class _InAppMessageNotification extends StatelessWidget {
       left: 12,
       right: 12,
       child: Material(
-          color: Colors.transparent,
-          child: Dismissible(
-            key: ValueKey(
-              'in-app-alert-${alert.messageGuid}-${alert.chatGuid}',
+        color: Colors.transparent,
+        child: Dismissible(
+          key: ValueKey('in-app-alert-${alert.messageGuid}-${alert.chatGuid}'),
+          direction: DismissDirection.up,
+          onDismissed: (_) => onDismiss(),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: -18, end: 0),
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            builder: (context, dy, child) => Transform.translate(
+              offset: Offset(0, dy),
+              child: Opacity(opacity: (18 + dy) / 18, child: child),
             ),
-            direction: DismissDirection.up,
-            onDismissed: (_) => onDismiss(),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: -18, end: 0),
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              builder: (context, dy, child) => Transform.translate(
-                offset: Offset(0, dy),
-                child: Opacity(opacity: (18 + dy) / 18, child: child),
+            child: Card(
+              elevation: 8,
+              shadowColor: Colors.black.withValues(alpha: 0.18),
+              color: scheme.surfaceContainerHigh,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
               ),
-              child: Card(
-                elevation: 8,
-                shadowColor: Colors.black.withValues(alpha: 0.18),
-                color: scheme.surfaceContainerHigh,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: onTap,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        HandleAvatar(
-                          title: alert.title,
-                          handle: alert.isGroup ? null : alert.handle,
-                          isGroup: alert.isGroup,
-                          radius: 22,
-                          localAvatarPath: alert.avatarFilePath,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      HandleAvatar(
+                        title: alert.title,
+                        handle: alert.isGroup ? null : alert.handle,
+                        isGroup: alert.isGroup,
+                        radius: 22,
+                        localAvatarPath: alert.avatarFilePath,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              alert.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              body.isEmpty
+                                  ? MicaLocalizations.of(
+                                      context,
+                                    ).t('chat.newMessage')
+                                  : body,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                alert.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                body.isEmpty ? 'New message' : body,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: scheme.onSurfaceVariant),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'Dismiss',
-                          onPressed: onDismiss,
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: MicaLocalizations.of(
+                          context,
+                        ).t('common.dismiss'),
+                        onPressed: onDismiss,
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
         ),
+      ),
     );
   }
 }

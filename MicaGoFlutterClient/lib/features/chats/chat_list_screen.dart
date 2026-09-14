@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_controller.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/platform/incoming_share_service.dart';
+import '../../core/platform/scroll_capture_service.dart';
 import '../contacts/contacts_service.dart';
 import '../settings/message_display_controller.dart';
 import 'avatar.dart';
@@ -49,10 +50,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
   bool _searchOpen = false;
   Timer? _autoRefresh;
   String _registeredShareTargetsKey = '';
+  final _scroll = ScrollController();
+  late final ScrollCaptureRegistration _scrollCapture;
 
   @override
   void initState() {
     super.initState();
+    _scrollCapture = ScrollCaptureService.register(_scroll);
     _controller = ChatListController(context.read<AppController>());
     _controller.includeDebug = context
         .read<MessageDisplayController>()
@@ -100,6 +104,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   void dispose() {
     _autoRefresh?.cancel();
     widget.searchRequests?.removeListener(_openSearch);
+    _scrollCapture.dispose();
+    _scroll.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     _controller.dispose();
@@ -332,6 +338,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     child: merged.isEmpty
                         ? _NoMatches(query: _query)
                         : ListView.separated(
+                            controller: _scroll,
+                            // A short list doesn't fill the screen, so it would not
+                            // scroll and pull-to-refresh could never start.
+                            physics: const AlwaysScrollableScrollPhysics(),
                             padding: EdgeInsets.fromLTRB(
                               12,
                               12,
@@ -365,7 +375,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   alignment: Alignment.centerLeft,
                                   color: Theme.of(context).colorScheme.primary,
                                   icon: Icons.mark_chat_read_outlined,
-                                  label: 'Mark read',
+                                  label: MicaLocalizations.of(
+                                    context,
+                                  ).t('chat.markRead'),
                                 ),
                                 secondaryBackground: _SwipeBg(
                                   alignment: Alignment.centerRight,
@@ -375,7 +387,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   icon: m.primary.isPinned
                                       ? Icons.push_pin_outlined
                                       : Icons.push_pin,
-                                  label: m.primary.isPinned ? 'Unpin' : 'Pin',
+                                  label: MicaLocalizations.of(context).t(
+                                    m.primary.isPinned
+                                        ? 'chat.unpin'
+                                        : 'chat.pinShort',
+                                  ),
                                 ),
                                 confirmDismiss: (dir) =>
                                     _onSwipe(context, m, dir),
@@ -566,6 +582,7 @@ class _NoMatches extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = MicaLocalizations.of(context);
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
         const Icon(Icons.search_off, size: 48),
@@ -764,13 +781,14 @@ class _ChatRow extends StatelessWidget {
     final parts = <String>[
       if (merged.isMerged)
         merged.routes
-            .map((r) => r.service.label)
+            .map((r) => r.service)
+            .where((s) => s != ChatService.unknown)
+            .map((s) => s.label)
             .toSet()
-            .where((l) => l != 'Unknown')
             .join(' · ')
       else if (chat.service != ChatService.unknown)
         chat.service.label,
-      if (chat.isGroup) 'Group',
+      if (chat.isGroup) MicaLocalizations.current.t('chat.group'),
     ].where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty && chat.chatIdentifier != null) {
       return chat.chatIdentifier!;
@@ -1075,15 +1093,16 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.25),
         const Icon(Icons.chat_bubble_outline, size: 56),
         const SizedBox(height: 12),
-        const Center(child: Text('No chats yet')),
+        Center(child: Text(MicaLocalizations.of(context).t('chat.noChatsYet'))),
         const SizedBox(height: 4),
         Center(
           child: Text(
-            'Pull down to refresh.',
+            MicaLocalizations.of(context).t('chat.pullToRefresh'),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),

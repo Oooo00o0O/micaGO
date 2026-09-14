@@ -42,6 +42,10 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Matches the toolchain used by the upstream v0.78.0 release build.
+  FLUTTER_VERSION: "3.44.3"
+
 jobs:
   meta:
     name: Resolve version
@@ -93,10 +97,11 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - name: Pub get
         working-directory: MicaGoFlutterClient
@@ -140,13 +145,17 @@ jobs:
   ios:
     name: iOS IPA (unsigned)
     needs: meta
-    runs-on: macos-15
+    # The Icon Composer app icon requires Xcode 26+.
+    runs-on: macos-26
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v7
+      - name: Show Xcode version
+        run: xcodebuild -version
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - name: Pub get
         working-directory: MicaGoFlutterClient
@@ -211,6 +220,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - name: Pub get
         working-directory: MicaGoFlutterClient

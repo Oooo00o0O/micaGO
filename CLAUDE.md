@@ -4,11 +4,12 @@ Live notes for Claude when working in this repo. Keep it short; update it as par
 
 ## What MicaGo is
 
-Three components:
+Four components:
 
 - **Go relay server** — `MicaGoServer/micago-server`. Reads the Mac's Messages DB, exposes a local control + chat API, syncs into `relay.db`, serves chats/messages/delta + WebSocket. Tests: `go test ./...`, `go vet ./...`.
 - **macOS Companion** (SwiftUI) — `MicaGoServer/micago-mac-companion`. Menu-bar + dashboard that launches/monitors the server, manages pairing/URLs, sync rules, devices, notifications. Build: `xcodebuild`.
 - **Flutter Android client** — `MicaGoFlutterClient`. Pairs over LAN/public URL, syncs, sends, optional FCM push. Checks: `flutter analyze`, `flutter test`, `flutter build apk --debug`.
+- **Windows client** (WinUI 3 / .NET 10) — `MicaGoWindowsClient`. Two-pane Fluent chat client; several passes were authored on macOS and await Windows verification (source of truth: `docs/IMPLEMENTATION_STATUS.md`). Build needs Windows: `dotnet build .\micaGO.Windows.sln -c Debug -p:Platform=x64`.
 
 ## Important rules
 
@@ -17,8 +18,219 @@ Three components:
 - Keep it **lightweight** — no new dependencies without a clear need.
 - **Firebase, keep-alive, and IMCore message actions are all optional and off by default.** Don't word docs/UI as if they're required or guaranteed.
 - Keep final logs clean (debug-guarded only).
+- **UI and website copy stays plain and short.** Say only what the user needs ("Chat hidden", not where it was hidden). No filler, no "not X but Y", no dash asides, no trailing ", doing …" clauses; Oxford comma for three or more items; no stacked adjectives or "A and B" pairs where one word will do.
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
+
+## Hardcoded English moved into the language tables (C86 / W-UI10)
+
+- **Flutter:** `MicaLocalizations.current` serves code without a BuildContext
+  (controllers, models, pairing parser, the FCM isolate). It follows the locale
+  the delegate last loaded, else `PlatformDispatcher.locale`; zh-TW/HK/MO now map
+  to Traditional. Widgets still use `MicaLocalizations.of(context)`. Tests run in
+  English, so render/presentation tests keep pinning English (the chat-list
+  placeholder is now `[Attachment]`, `[附件]` in Chinese). Sentinels are not
+  translated: the chat-list subtitle filters `ChatService.unknown` by enum, and
+  `AttachmentModel.displayName` stays `'Attachment'`. Technical diagnostic
+  key/value rows stay English.
+- **Windows:** new keys for the status bar (`StatusLabel` maps the realtime
+  loop's fixed English status words), theme/language ComboBox items
+  (`LocalizePickers` re-selects so the closed box refreshes), both Back
+  tooltips, the media viewer buttons, and pairing/connection errors.
+- **Companion:** SwiftUI literals localize through `Localizable.xcstrings`.
+  Helpers that take `String` (`SectionCard`, `LabeledRow`, `CopyableRow`,
+  `CapabilityRow`, `PermissionRow`, `StatusFlag`, `EndpointGroupHeader`,
+  `AboutInfoButton`, `firebaseFileRow`) render `Text(LocalizedStringKey(…))`;
+  their literals are `extractionState: manual` catalog entries. Ternaries,
+  computed returns, and interpolated titles use `String(localized:)`. Left in
+  English on purpose: `notifResult` and the APIClient test-push results (their
+  color logic reads the English words) and inspector `kv` debug rows.
+  `xcodebuild` does not sync the catalog; new keys come from the build's
+  `.stringsdata` (arm64) and are added by hand.
+
+## Windows parity with the recent Flutter passes (W-UI9)
+
+- **Route card (Flutter C85):** Settings → Connection lists
+  `ConnectionManager.RouteOptions` (`RouteSelection.DisplayOrder`, stable) as
+  radios whose caption is `RouteSelection.RowStatus`; radio = route in use,
+  only *available* rows are enabled; probing only greys rows. `SwitchRouteAsync`
+  stores `ConnectionProfile.SelectedBaseUrl` and returns a `RouteSwitchResult`
+  (InfoBar, auto-hides after 4s).
+- **Routes now fail over after startup.** Windows used to select a route only in
+  `ActivateAsync`, so a dropped LAN route retried the same URL forever. The
+  realtime loop now calls `ConnectionManager.ReselectRouteAsync` before each
+  reconnect; selection probes the chosen route alone first, otherwise the rest,
+  and drops the choice when another route takes over (kept if nothing is
+  reachable). Switching never replaces the API object — `MicaGoApi.Rebase`
+  swaps its HttpClient (old one retired until Dispose) and cancels the live
+  socket so the loop reopens it on the new route; every captured `IMicaGoApi`
+  stays valid. `_selectionEpoch` lets only the newest selection apply.
+- **Unpair (C76):** "Disconnect" → localized "Unpair and clear data" card with a
+  dialog naming all three consequences; it also clears the content/media cache.
+- **Hidden contacts (C83):** no standing `prefsDescription`; the sync status +
+  actions are the last item of the scrolling content, only when actionable.
+- **Reaction chip (C81):** 20px reserved above the bubble, chip at Y=0.
+- Tests: `RouteSelectionTests` (contract tests). **Not compiled on Windows.**
+
+## Windows chat background scrim + solid surfaces + bubble presets (W-UI8)
+
+- **Scrim like Flutter's `_ChatBackground`:** `ChatBackgroundScrim` over
+  `ChatBackgroundImage` (`MicaGoChatBackgroundScrimBrush`: light white 30%,
+  dark black 38%). The image only reloads when path + write time change (the
+  picked file is always copied to the same name), with `IgnoreImageCache`.
+- **See-through boxes over a custom background:** `ChatSurfaceBrushes.Apply`
+  flips shared theme brushes in place (Light + Dark dictionaries) —
+  `MicaGoContactBarBrush` acrylic → `AlwaysUseFallback` (header, composer,
+  voice/selection bars via the `MicaGoComposerBrush` alias) and the new
+  `MicaGoChatChipBrush` / `MicaGoChatCardBrush` → opaque (date/reply chips,
+  reaction chip, card tiles, link previews, jump button). Without a background
+  they keep the old translucent values. New thread surfaces should use these
+  brushes, not the system Subtle/Card fills.
+- **Bubble colour:** the follow-accent toggle stays; when off, the card shows 12
+  preset swatches (`AppearanceService.BubbleColorPresets` = Flutter theme
+  colours) plus the custom ring picker, which now previews while dragging and
+  saves once on flyout close (it used to save + refresh every bubble per step).
+- Authored on macOS, **not compiled on Windows** — verify brush mutation
+  propagates live and the swatch layout.
+
+## Route card: radio = route in use (C85, client-only)
+
+- `_RouteSwitcher` lists `AppController.routeOptions` (stable order —
+  `connectionCandidatesForProfile(pinFirst: false)`) with full base URLs; each
+  row's subtitle is the pure `routeRowStatus` (switching / connected · ms /
+  connecting / checking / available · ms / unavailable). No bottom status line
+  and no Automatic row. The radio marks the route **in use**; only *available*
+  rows are tappable. **Checking never switches or disconnects** — it only
+  greys the row (`_probingRoutes`, re-probed via `probeAllRoutes()` each time
+  Settings opens); the route in use stays "connected" while realtime is up even
+  if that check times out.
+- Tapping switches now: `selectRoute` stores `selectedBaseUrl`, keeps the old
+  route serving until the new one connects, and returns a `RouteSwitchResult`
+  for the snackbar (switched / fell back / unreachable / superseded).
+- **The manual choice lasts until it drops.** `selectReachableCandidate` probes
+  the chosen route alone first (it used to join the parallel LAN run, where a
+  faster LAN could win); when it fails and another route connects,
+  `_dropChosenRoute` clears `selectedBaseUrl` → automatic again. If nothing is
+  reachable the choice is kept. `_selectionEpoch` lets only the newest run
+  activate a route, so an in-flight reconnect can't undo a manual switch.
+  Tests: `route_status_test.dart`.
+
+## Route card + artifacts-only CI + bilingual site (C84)
+
+- ~~Settings route card with a "preferred" radio + bottom status line~~ —
+  superseded by C85 below.
+- **CI builds artifacts only.** Tag pushes and manual runs upload artifacts; the
+  `publish` job is gone and releases are created by hand. Names follow the
+  0.68.0 release: `micaGO-<v>-android-release.apk`,
+  `micaGO-<v>-Windows-release.zip`, `micaGO-<v>-iOS-release-unsigned.ipa`,
+  `micaGO-<v>-Linux-release.tar.gz`. macOS stays
+  `micaGO-Companion-<v>-mac.dmg`, which the Sparkle appcast URL depends on.
+- **Website languages** (`docs/index.html`): English stays in the markup with
+  `data-i18n` keys; an inline script holds the zh-Hans/zh-Hant tables and follows
+  `navigator.languages` (zh-TW/HK/MO/Hant → Traditional) unless the header
+  EN/简/繁 switcher stored a choice (`localStorage` `micago.site.lang`). Doc links
+  go to the localized docs where they exist (index, getting-started) and are
+  marked 英文 otherwise.
+
+## Hidden-items copy placement (C83, client-only)
+
+- The Settings "Hidden items" card no longer shows the `prefs.description`
+  explanation: `ChatPreferenceStatus(showDescription: false)` renders nothing
+  unless there is something to act on (sync error, conflicts, legacy import,
+  pending changes). On the Hidden contacts page the status moved from a pinned
+  `header` to a `footer` that is the last item of the scrolling list (below the
+  empty state when nothing is hidden). The Hidden messages page never had copy.
+
+## 0.78.0 Muscovite: packaging on macOS 27, CI trim, plain-language site (C82)
+
+- **Version 0.78.0 (+78), codename Muscovite** across pubspec/`kAppVersion`,
+  `version.go`, Companion + Flutter iOS/macOS `MARKETING_VERSION` /
+  `CURRENT_PROJECT_VERSION`, Windows `Directory.Build.props` + `app.manifest`,
+  `package-dmg.sh`, `release-packaging.md` and AGENTS.md. Codename strings:
+  Flutter `settings.versionFooter` ×3 + the About version tile, Windows
+  `LocalizationService` `version`, Companion `companionVersionLabel`.
+- **macOS 27 toolchain:** Xcode 26.6's linker (`ld-1267`) can't read the
+  Command Line Tools 27.0 SDK (`arm64e.x1` → "unknown architecture"), so cgo
+  links of the backend failed. `package-dmg.sh` (Go step, `GO_DEVELOPER_DIR`)
+  and `build-backend.sh` (`DEVELOPER_DIR`) default to the Command Line Tools
+  toolchain; `xcodebuild` still uses Xcode.
+- **Universal Companion:** `xcodebuild` without `-destination` built only the
+  host architecture — 0.68.0 shipped arm64-only and its appcast declared
+  `hardwareRequirements arm64`. The script now passes
+  `-destination generic/platform=macOS`.
+- **Backend minimum macOS:** cgo's C objects targeted the build host, so the
+  bundled backend's arm64 slice declared `minos 26.0` in 0.68.0 (and 27.0 when
+  built on macOS 27) — it would not launch on older macOS despite the app's 13.0
+  target. `package-dmg.sh` and `build-backend.sh` now export
+  `MACOSX_DEPLOYMENT_TARGET` plus `-mmacosx-version-min` in
+  `CGO_CFLAGS`/`CGO_LDFLAGS` (`BACKEND_MIN_MACOS`, default 13.0), and the DMG
+  script prints the per-arch minos. The 24 `ld` "built for newer 'macOS'
+  version (26.0)" warnings still in the packaging log come from the Companion
+  target's own "Bundle Go Backend" Xcode Run Script phase: its host-only,
+  un-targeted backend is overwritten by the script's universal one, so the DMG
+  is unaffected — but a plain Xcode build still bundles that binary.
+- **Local DMGs sign with the Developer ID identity** (team 37LJQ72TKW, same as
+  published builds) so macOS privacy grants such as Full Disk Access survive
+  replacing an installed copy; an unsigned build changes the code identity.
+- **CI:** removed the Flutter Windows job and the macOS DMG job — macOS
+  signing, notarization and the Sparkle appcast stay on the local Mac, so the
+  Developer ID certificate and Sparkle key never live in GitHub. Added a
+  `windows` job for the WinUI app (`setup-dotnet` 10.0.x → Core contract tests →
+  `package-release-x64.ps1` → a Windows zip; its first run succeeded). ~~Tag
+  builds create a draft release~~ — superseded by C84 (artifacts only, releases
+  made by hand). Flutter is pinned to 3.44.3 and Android
+  uses Java 21 to match local builds. Android CI had failed only because the
+  four `ANDROID_KEY*` secrets were never configured; manual runs without them
+  now analyze/test and skip the APK. The iOS job runs on `macos-26`: the app
+  icon is an Icon Composer `MicaGoC.icon`, which only Xcode 26+ compiles, so
+  macos-15 (Xcode 16) failed with "no app icon set named MicaGoC". The site
+  links the first asset named `*windows*.exe` (preferred) or `*windows*.zip`.
+- **Website** (`docs/index.html`) rewritten in plain language around the common
+  misunderstanding ("a remote control for your own Mac — no Mac, no micaGO"),
+  with an "Is this for me?" section, a Windows download card (`.download-grid`
+  is 3 columns) and a rewritten FAQ.
+- **Auto-update status (checked 2026-09-13):** Sparkle in the installed 0.68.0
+  Companion is enabled and checking (`SULastCheckTime` same day) and the live
+  appcast is signed and reachable; updates stall only because nothing after
+  v0.68.0 has been released. Flutter and Windows only *check* GitHub releases
+  and link to the page — no in-app install.
+
+## Reaction chip spacing + Android scrolling screenshot (C81, client-only)
+
+- **Reaction chip crowded the bubble above.** The chip sat at `top: -4` over a
+  stack whose bubble started 8px down, so it poked into the row gap and touched
+  (with tight grouping, overlapped) the previous bubble. The stack now reserves
+  20px and the chip sits at `top: 6`, overlapping its own bubble by ~5px with
+  clear space above. The overlay, extra space and forced tail only apply when
+  `activeReactionEmojis` yields a glyph, so an unresolvable reaction no longer
+  leaves an empty gap.
+- **Android "Capture more" (scrolling screenshot).** Flutter draws into one
+  SurfaceView, so the system's scroll-capture search found no native scrollable
+  and never offered the button. `FlutterScrollCapture.kt` (API 31+, installed on
+  the FlutterView in `MainActivity.onStart`) implements `ScrollCaptureCallback`
+  over the `micago/scroll_capture` channel: Dart's `ScrollCaptureService`
+  (`core/platform/scroll_capture_service.dart`) reports the active list's
+  bounds, jumps it one tile at a time and returns the covered pixel range; native
+  waits two vsyncs, `PixelCopy`s from the `FlutterSurfaceView` (window copy as a
+  fallback) and draws into the session surface. Lists opt in via
+  `ScrollCaptureService.register(controller, topInset:, bottomInset:)`; the
+  newest visible registration wins (thread beats chat list in two-pane) and
+  `ModalRoute.isCurrentOf` skips lists under another route. The thread excludes
+  its 24px rounded top and the composer overlay, and drops the jump-to-bottom
+  button while `capturing`. Tile geometry is pure and tested
+  (`scroll_capture_plan_test.dart`). **Not yet verified on a device** — the
+  Pixel has a release-signed build, so test with a release APK.
+
+## Component README rewrite (C80, docs-only)
+
+- `MicaGoWindowsClient/README.md` (was Chinese + pre-WS/SQLite era),
+  `MicaGoFlutterClient/README.md`, and `micago-mac-companion/README.md`
+  rewritten in English to match 0.71.0 reality (Windows: full feature set +
+  honest "pending Windows verification" status; Flutter: C54–C77 features,
+  WS header token; Companion: sidebar pages, tunnel control, Sparkle, Keep
+  Awake, Automation probe, IMCore uninstall). Keep them in sync with future
+  passes — the Windows README defers per-module status to
+  `IMPLEMENTATION_STATUS.md` on purpose.
 
 ## Windows client UI redesign (W-UI1)
 

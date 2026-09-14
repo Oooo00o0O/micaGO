@@ -40,8 +40,11 @@
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1">
-                <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Visibility="Collapsed">
+            <!-- W-UI9 (Flutter C83): the hidden-chat sync status is the last item of the
+                 scrolling content and only appears when there is something to act on. -->
+            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="12">
+                <StackPanel x:Name="EmptyState" Margin="0,48,0,0" HorizontalAlignment="Center" Spacing="12" Visibility="Collapsed">
                     <FontIcon HorizontalAlignment="Center" FontSize="42" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE77B;" />
                     <TextBlock x:Name="EmptyText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="No hidden contacts" />
                 </StackPanel>
@@ -85,16 +88,19 @@
                         </ListView>
                     </Border>
                 </StackPanel>
-            </Grid>
+                <StackPanel x:Name="PreferencePanel" Spacing="8" Visibility="Collapsed">
+                    <TextBlock x:Name="PreferenceStatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Vertical" HorizontalAlignment="Left" Spacing="8">
+                        <Button x:Name="ImportPreferencesButton" Click="ImportPreferences_Click" />
+                        <Button x:Name="RetryPreferencesButton" Click="RetryPreferences_Click" />
+                        <Button x:Name="ServerPreferencesButton" Click="ServerPreferences_Click" />
+                        <Button x:Name="MinePreferencesButton" Click="MinePreferences_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+            </ScrollViewer>
 
             <StackPanel Grid.Row="2" Spacing="8">
-                <TextBlock x:Name="PreferenceStatusText" TextWrapping="Wrap" />
-                <StackPanel Orientation="Vertical" HorizontalAlignment="Left" Spacing="8">
-                    <Button x:Name="ImportPreferencesButton" Click="ImportPreferences_Click" />
-                    <Button x:Name="RetryPreferencesButton" Click="RetryPreferences_Click" />
-                    <Button x:Name="ServerPreferencesButton" Click="ServerPreferences_Click" />
-                    <Button x:Name="MinePreferencesButton" Click="MinePreferences_Click" />
-                </StackPanel>
                 <InfoBar x:Name="RestoreInfoBar" IsOpen="False" IsClosable="True" Severity="Success" />
                 <Button x:Name="RestoreSelectedButton"
                         HorizontalAlignment="Stretch"

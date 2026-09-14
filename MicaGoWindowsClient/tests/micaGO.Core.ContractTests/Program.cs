@@ -32,6 +32,7 @@ var tests = new (string Name, Action Run)[]
     ("Flutter-compatible link preview metadata", ParsesLinkPreviewMetadata),
     ("update check version compare", ComparesReleaseVersions),
     ("snapshot drops server-side deletes", MergeSnapshotDropsDeletedRows),
+    ("route card status, in-use row and order", RouteSelectionTests.Run),
 };
 
 var failures = 0;

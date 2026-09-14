@@ -16,6 +16,7 @@ import '../../core/app_controller.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/websocket_client.dart';
+import '../../core/platform/scroll_capture_service.dart';
 import 'realtime_event_helpers.dart' as rt;
 import '../../core/theme_controller.dart';
 import '../../core/storage/media_cache.dart';
@@ -86,6 +87,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
   Map<String, int> _rowIndices = const {};
   String? _reportedThreadError;
   final _scroll = ScrollController();
+  late final ScrollCaptureRegistration _scrollCapture;
   final _composer = TextEditingController();
   final _composerHasText = ValueNotifier<bool>(false);
   final Map<String, GlobalKey> _messageKeys = {};
@@ -191,6 +193,13 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     });
     _controller = _createController(app, _active)..start();
     _scroll.addListener(_onScroll);
+    // The chat area's rounded top corners and the composer overlay would repeat
+    // in every stitched tile of a scrolling screenshot.
+    _scrollCapture = ScrollCaptureService.register(
+      _scroll,
+      topInset: () => 24,
+      bottomInset: () => _bottomOverlayHeight + _keyboardInset(context),
+    );
     _controller.addListener(_onThreadChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_refreshOtherUnreadChats());
@@ -310,6 +319,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     _seenWsSub?.cancel();
     _seenDeltaSub?.cancel();
     _scroll.removeListener(_onScroll);
+    _scrollCapture.dispose();
     _controller.removeListener(_onThreadChanged);
     _controller.dispose();
     _scroll.dispose();
@@ -394,7 +404,10 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     final key = _messageKeys[guid];
     final targetContext = key?.currentContext;
     if (targetContext == null) {
-      TopBanner.show(context, 'Quoted message is not loaded yet.');
+      TopBanner.show(
+        context,
+        MicaLocalizations.of(context).t('chat.quotedNotLoaded'),
+      );
       return;
     }
     await Scrollable.ensureVisible(
@@ -492,14 +505,17 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
 
   void _onKeyboardContentInserted(KeyboardInsertedContent content) {
     if (!_canSendAttachments) {
-      TopBanner.show(context, 'Attachments can’t be sent in this chat.');
+      TopBanner.show(
+        context,
+        MicaLocalizations.of(context).t('chat.attachmentsNotAllowed'),
+      );
       return;
     }
     final bytes = content.data;
     if (bytes == null || bytes.isEmpty) {
       TopBanner.show(
         context,
-        'Could not read keyboard media.',
+        MicaLocalizations.of(context).t('chat.keyboardMediaFailed'),
         kind: TopBannerKind.error,
       );
       return;
@@ -562,7 +578,9 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
       if (mounted) {
         TopBanner.show(
           context,
-          'Could not prepare attachment: $error',
+          MicaLocalizations.of(
+            context,
+          ).t('chat.prepareAttachmentFailed').replaceAll('{error}', '$error'),
           kind: TopBannerKind.error,
         );
       }
@@ -605,7 +623,10 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
   Future<void> _startVoice() async {
     if (_recording || _voiceBusy) return;
     if (!_canSendAttachments) {
-      TopBanner.show(context, 'Attachments can’t be sent in this chat.');
+      TopBanner.show(
+        context,
+        MicaLocalizations.of(context).t('chat.attachmentsNotAllowed'),
+      );
       return;
     }
     setState(() {
@@ -644,7 +665,11 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
       _pendingVoiceLevels = levels;
     });
     if (result == null) {
-      TopBanner.show(context, 'Recording failed.', kind: TopBannerKind.error);
+      TopBanner.show(
+        context,
+        MicaLocalizations.of(context).t('chat.recordingFailed'),
+        kind: TopBannerKind.error,
+      );
     }
   }
 
@@ -698,7 +723,9 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     if (err != null) {
       TopBanner.show(
         context,
-        'Attachment failed: $err',
+        MicaLocalizations.of(
+          context,
+        ).t('chat.attachmentFailed').replaceAll('{error}', err),
         kind: TopBannerKind.error,
       );
       _controller.clearAttachmentError();
@@ -846,11 +873,18 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
           // C68: raised so it clears the composer pill comfortably.
           bottom: math.max(124, _bottomInset(context) + 6),
           child: Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child: _showJumpToBottom
-                  ? _JumpToBottomButton(onTap: _scrollToBottom)
-                  : const SizedBox.shrink(),
+            // A scrolling screenshot scrolls far enough to show this button and
+            // would stitch it into every tile, so it is removed (not faded) then.
+            child: ValueListenableBuilder<bool>(
+              valueListenable: ScrollCaptureService.capturing,
+              builder: (context, capturing, _) => capturing
+                  ? const SizedBox.shrink()
+                  : AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _showJumpToBottom
+                          ? _JumpToBottomButton(onTap: _scrollToBottom)
+                          : const SizedBox.shrink(),
+                    ),
             ),
           ),
         ),
@@ -1073,7 +1107,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     final scheme = Theme.of(context).colorScheme;
     final allowSms = context.read<AppController>().allowSmsSend;
     return PopupMenuButton<String>(
-      tooltip: 'Send route',
+      tooltip: MicaLocalizations.of(context).t('chat.sendRoute'),
       icon: Icon(Icons.swap_horiz, color: scheme.onSurfaceVariant),
       onSelected: (guid) {
         final route = routes.firstWhere((r) => r.guid == guid);
@@ -1144,9 +1178,13 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
         return RefreshIndicator(
           onRefresh: () => _controller.load(showSpinner: false),
           child: ListView(
-            children: const [
-              SizedBox(height: 120),
-              Center(child: Text('No messages yet')),
+            children: [
+              const SizedBox(height: 120),
+              Center(
+                child: Text(
+                  MicaLocalizations.of(context).t('chat.noMessagesYet'),
+                ),
+              ),
             ],
           ),
         );
@@ -1378,7 +1416,9 @@ class _MessageThreadScreenState extends State<MessageThreadScreen>
     if (m.isSystem) {
       return _SystemRow(
         message: m.message,
-        baseLabel: m.systemLabel ?? 'Unsupported message',
+        baseLabel:
+            m.systemLabel ??
+            MicaLocalizations.of(context).t('chat.unsupportedMessage'),
         mergedCount: m.mergedSystemCount,
         isUnknown: m.kind == MessageRenderableKind.unknown,
         onDebug: () => showMessageDebugSheet(context, m.message),
@@ -2075,39 +2115,39 @@ Future<void> showMessageActionMenu(
         ),
       ),
     if (canMutate && caps.edit && message.isFromMe && text != null)
-      const PopupMenuItem<MessageAction>(
+      PopupMenuItem<MessageAction>(
         value: MessageAction.edit,
         child: ListTile(
           dense: true,
-          leading: Icon(Icons.edit_outlined),
-          title: Text('Edit'),
+          leading: const Icon(Icons.edit_outlined),
+          title: Text(MicaLocalizations.of(context).t('common.edit')),
         ),
       ),
     if (canMutate && caps.retract && message.isFromMe)
-      const PopupMenuItem<MessageAction>(
+      PopupMenuItem<MessageAction>(
         value: MessageAction.retract,
         child: ListTile(
           dense: true,
-          leading: Icon(Icons.undo),
-          title: Text('Undo Send'),
+          leading: const Icon(Icons.undo),
+          title: Text(MicaLocalizations.of(context).t('chat.undoSend')),
         ),
       ),
     if (canMutate && caps.delete)
-      const PopupMenuItem<MessageAction>(
+      PopupMenuItem<MessageAction>(
         value: MessageAction.delete,
         child: ListTile(
           dense: true,
-          leading: Icon(Icons.delete_outline),
-          title: Text('Delete'),
+          leading: const Icon(Icons.delete_outline),
+          title: Text(MicaLocalizations.of(context).t('common.delete')),
         ),
       ),
     if (failedPending)
-      const PopupMenuItem<MessageAction>(
+      PopupMenuItem<MessageAction>(
         value: MessageAction.deletePending,
         child: ListTile(
           dense: true,
-          leading: Icon(Icons.delete_outline),
-          title: Text('Delete'),
+          leading: const Icon(Icons.delete_outline),
+          title: Text(MicaLocalizations.of(context).t('common.delete')),
         ),
       ),
   ];
@@ -2172,7 +2212,7 @@ Future<void> showMessageActionMenu(
       await _runMessageAction(
         context,
         () => api.editMessage(chatGuid, message.guid, edited),
-        success: 'Message edit queued',
+        success: MicaLocalizations.of(context).t('chat.editQueued'),
         onChanged: onChanged,
       );
       break;
@@ -2180,15 +2220,15 @@ Future<void> showMessageActionMenu(
       if (api == null || chatGuid == null) return;
       final ok = await _confirmMessageAction(
         context,
-        title: 'Undo Send',
-        body: 'Undo send for this iMessage?',
-        confirm: 'Undo Send',
+        title: MicaLocalizations.of(context).t('chat.undoSend'),
+        body: MicaLocalizations.of(context).t('chat.undoSendBody'),
+        confirm: MicaLocalizations.of(context).t('chat.undoSend'),
       );
       if (!context.mounted || !ok) return;
       await _runMessageAction(
         context,
         () => api.retractMessage(chatGuid, message.guid),
-        success: 'Undo send queued',
+        success: MicaLocalizations.of(context).t('chat.undoSendQueued'),
         onChanged: () async {
           await onChanged?.call();
           onRetracted?.call(message.guid);
@@ -2199,15 +2239,15 @@ Future<void> showMessageActionMenu(
       if (api == null || chatGuid == null) return;
       final ok = await _confirmMessageAction(
         context,
-        title: 'Delete Message',
-        body: 'Delete this message from this Mac?',
-        confirm: 'Delete',
+        title: MicaLocalizations.of(context).t('chat.deleteMessage'),
+        body: MicaLocalizations.of(context).t('chat.deleteMessageBody'),
+        confirm: MicaLocalizations.of(context).t('common.delete'),
       );
       if (!context.mounted || !ok) return;
       await _runMessageAction(
         context,
         () => api.deleteMessage(chatGuid, message.guid),
-        success: 'Delete queued',
+        success: MicaLocalizations.of(context).t('chat.deleteQueued'),
         onChanged: () async {
           await onHide?.call();
           await onChanged?.call();
@@ -2230,7 +2270,7 @@ Future<String?> _promptForEditedMessage(
   final result = await showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Edit Message'),
+      title: Text(MicaLocalizations.of(context).t('chat.editMessage')),
       content: TextField(
         controller: controller,
         autofocus: true,
@@ -2240,11 +2280,11 @@ Future<String?> _promptForEditedMessage(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(MicaLocalizations.of(context).t('common.cancel')),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-          child: const Text('Save'),
+          child: Text(MicaLocalizations.of(context).t('common.save')),
         ),
       ],
     ),
@@ -2462,7 +2502,7 @@ Future<bool> _confirmMessageAction(
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(MicaLocalizations.of(context).t('common.cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
@@ -2938,6 +2978,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
     final api = widget.api;
     final reactions = widget.reactions;
     final stickers = widget.stickers;
+    // Only reactions that resolve to a glyph take space: a chip with nothing to
+    // draw must not push the bubble down or force its tail.
+    final reactionEmojis = activeReactionEmojis(reactions);
     final reply = widget.reply;
     final effectHint = widget.effectHint;
     final scheme = Theme.of(context).colorScheme;
@@ -3105,7 +3148,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
           fromMe: fromMe,
           showTail:
               widget.showBubbleTail ||
-              reactions.isNotEmpty ||
+              reactionEmojis.isNotEmpty ||
               stickers.isNotEmpty,
         ),
         child: Padding(
@@ -3155,15 +3198,18 @@ class _MessageBubbleState extends State<_MessageBubble> {
       child: bubbleInner,
     );
 
-    final bubbleWithOverlays = reactions.isEmpty && stickers.isEmpty
+    final bubbleWithOverlays = reactionEmojis.isEmpty && stickers.isEmpty
         ? bubble
         : Semantics(
             container: true,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
+                // The chip rides the bubble's top corner (overlapping it by a
+                // few px) and must stay inside this row, clear of the bubble
+                // above.
                 Padding(
-                  padding: EdgeInsets.only(top: stickers.isEmpty ? 8 : 22),
+                  padding: EdgeInsets.only(top: stickers.isEmpty ? 20 : 22),
                   child: bubble,
                 ),
                 if (stickers.isNotEmpty && api != null)
@@ -3176,12 +3222,12 @@ class _MessageBubbleState extends State<_MessageBubble> {
                       stickers: stickers,
                     ),
                   ),
-                if (reactions.isNotEmpty)
+                if (reactionEmojis.isNotEmpty)
                   Positioned(
-                    top: stickers.isEmpty ? -4 : 8,
+                    top: stickers.isEmpty ? 6 : 8,
                     right: fromMe ? null : 4,
                     left: fromMe ? 4 : null,
-                    child: _ReactionChips(reactions: reactions),
+                    child: _ReactionChips(emojis: reactionEmojis),
                   ),
               ],
             ),
@@ -3302,7 +3348,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
               _GroupSenderAvatarSlot(
                 title: senderText.isNotEmpty
                     ? senderText
-                    : (message.handleId ?? 'Unknown'),
+                    : (message.handleId ??
+                          MicaLocalizations.of(context).t('common.unknown')),
                 handle: message.handleId,
                 showAvatar: widget.showSenderAvatar,
               ),
@@ -3614,14 +3661,12 @@ class _GroupSenderAvatarSlot extends StatelessWidget {
 
 /// Compact reaction chips overlaid on the target bubble (merged tapbacks).
 class _ReactionChips extends StatelessWidget {
-  final List<MessageModel> reactions;
-  const _ReactionChips({required this.reactions});
+  final List<String> emojis;
+  const _ReactionChips({required this.emojis});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final emojis = activeReactionEmojis(reactions);
-    if (emojis.isEmpty) return const SizedBox.shrink();
     // The chip floats over the bubble corner. On stripped/transparent bubbles
     // (emoji, files, media) it sits directly on the chat background, so give it a
     // shadow + solid surface + border so it stays visible on any background (C54)
@@ -3640,10 +3685,7 @@ class _ReactionChips extends StatelessWidget {
           ),
         ],
       ),
-      child: Text(
-        emojis.join(' '),
-        style: const TextStyle(fontSize: 12),
-      ),
+      child: Text(emojis.join(' '), style: const TextStyle(fontSize: 12)),
     );
   }
 }
@@ -3659,21 +3701,21 @@ class _InteractiveAppCard extends StatelessWidget {
     final isDigitalTouch = message.isDigitalTouch;
     final isHandwritten = message.isHandwritten;
     final title = isPoll
-        ? 'iMessage Poll'
+        ? MicaLocalizations.of(context).t('chat.pollTitle')
         : isDigitalTouch
-        ? 'Digital Touch Message'
+        ? MicaLocalizations.of(context).t('chat.digitalTouchMessage')
         : isHandwritten
-        ? 'Handwritten Message'
-        : 'Unsupported iMessage App';
+        ? MicaLocalizations.of(context).t('chat.handwrittenMessage')
+        : MicaLocalizations.of(context).t('chat.unsupportedApp');
     final subtitle = isPoll
-        ? 'Poll details are unavailable'
+        ? MicaLocalizations.of(context).t('chat.pollUnavailable')
         : isDigitalTouch
-        ? 'Digital Touch media'
+        ? MicaLocalizations.of(context).t('chat.digitalTouchMedia')
         : isHandwritten
-        ? 'Handwritten media'
+        ? MicaLocalizations.of(context).t('chat.handwrittenMedia')
         : message.payloadDataPresent
-        ? 'Interactive message'
-        : 'Unsupported interactive message';
+        ? MicaLocalizations.of(context).t('chat.interactiveMessage')
+        : MicaLocalizations.of(context).t('chat.unsupportedInteractive');
     final icon = isPoll
         ? Icons.how_to_vote_outlined
         : isDigitalTouch
@@ -3791,8 +3833,8 @@ class _ReplyPreviewBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final label = reply.targetLoaded
-        ? (reply.text ?? 'Attachment')
-        : 'Replying to a message';
+        ? (reply.text ?? MicaLocalizations.of(context).t('common.attachment'))
+        : MicaLocalizations.of(context).t('chat.replyingTo');
     final bubbleColor = scheme.surface.withValues(alpha: 0.72);
     final textColor = scheme.onSurfaceVariant;
     return Padding(
@@ -4376,7 +4418,7 @@ class _VoiceRecordingBarState extends State<_VoiceRecordingBar> {
                   ),
                 )
               : IconButton.filled(
-                  tooltip: 'Stop',
+                  tooltip: MicaLocalizations.of(context).t('chat.stop'),
                   style: IconButton.styleFrom(
                     backgroundColor: _accent3_500(scheme),
                     foregroundColor: scheme.onTertiary,
@@ -4649,9 +4691,9 @@ class _ComposerState extends State<_Composer> {
 
   String get _hintText => switch (widget.service) {
     ChatService.imessage => 'iMessage',
-    ChatService.sms => 'SMS through Mac',
+    ChatService.sms => MicaLocalizations.of(context).t('chat.composerSms'),
     ChatService.rcs => 'RCS',
-    ChatService.unknown => 'Message',
+    ChatService.unknown => MicaLocalizations.of(context).t('common.message'),
   };
 
   @override
@@ -4752,7 +4794,9 @@ class _ComposerState extends State<_Composer> {
                         )
                       : IconButton(
                           onPressed: widget.onAttach,
-                          tooltip: 'Attachments',
+                          tooltip: MicaLocalizations.of(
+                            context,
+                          ).t('chat.attachments'),
                           color: attachIconColor,
                           icon: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 150),
@@ -4796,7 +4840,9 @@ class _ComposerState extends State<_Composer> {
                             child: showEmoji
                                 ? IconButton(
                                     key: const ValueKey('emoji'),
-                                    tooltip: 'Emoji',
+                                    tooltip: MicaLocalizations.of(
+                                      context,
+                                    ).t('chat.emoji'),
                                     visualDensity: VisualDensity.compact,
                                     color: widget.emojiOpen
                                         ? _accent3_500(scheme)
@@ -4809,7 +4855,9 @@ class _ComposerState extends State<_Composer> {
                                   )
                                 : IconButton(
                                     key: const ValueKey('voice'),
-                                    tooltip: 'Voice message',
+                                    tooltip: MicaLocalizations.of(
+                                      context,
+                                    ).t('chat.voiceMessage'),
                                     visualDensity: VisualDensity.compact,
                                     color: inputIconColor,
                                     icon: const Icon(Icons.mic_none, size: 22),
@@ -4915,7 +4963,7 @@ class _ComposerState extends State<_Composer> {
                   ),
                 )
               : glassCircle(
-                  tooltip: 'Attachments',
+                  tooltip: MicaLocalizations.of(context).t('chat.attachments'),
                   onPressed: widget.onAttach,
                   icon: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 150),
@@ -4959,7 +5007,9 @@ class _ComposerState extends State<_Composer> {
                       child: showEmoji
                           ? IconButton(
                               key: const ValueKey('emoji-liquid'),
-                              tooltip: 'Emoji',
+                              tooltip: MicaLocalizations.of(
+                                context,
+                              ).t('chat.emoji'),
                               visualDensity: VisualDensity.compact,
                               color: widget.emojiOpen
                                   ? _glassBlue(scheme)
@@ -4972,7 +5022,9 @@ class _ComposerState extends State<_Composer> {
                             )
                           : IconButton(
                               key: const ValueKey('voice-liquid'),
-                              tooltip: 'Voice message',
+                              tooltip: MicaLocalizations.of(
+                                context,
+                              ).t('chat.voiceMessage'),
                               visualDensity: VisualDensity.compact,
                               color: inputIconColor,
                               icon: const Icon(Icons.mic_none, size: 22),
@@ -5934,13 +5986,23 @@ class _ThreadDetailsSheetState extends State<_ThreadDetailsSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
-        ..showSnackBar(const SnackBar(content: Text('Local avatar updated')));
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              MicaLocalizations.of(context).t('chat.localAvatarUpdated'),
+            ),
+          ),
+        );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-          const SnackBar(content: Text('Could not use that image')),
+          SnackBar(
+            content: Text(
+              MicaLocalizations.of(context).t('chat.imageUnusable'),
+            ),
+          ),
         );
     }
   }
@@ -5950,7 +6012,13 @@ class _ThreadDetailsSheetState extends State<_ThreadDetailsSheet> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
-      ..showSnackBar(const SnackBar(content: Text('Local avatar removed')));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            MicaLocalizations.of(context).t('chat.localAvatarRemoved'),
+          ),
+        ),
+      );
   }
 }
 

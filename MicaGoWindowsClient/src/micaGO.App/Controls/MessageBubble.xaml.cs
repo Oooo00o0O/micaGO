@@ -367,7 +367,7 @@ public sealed partial class MessageBubble : UserControl
             RadiusY = 14,
             Width = 240,
             Height = 170,
-            Fill = ThemeBrush("SubtleFillColorSecondaryBrush"),
+            Fill = ThemeBrush("MicaGoChatChipBrush"),
         };
         var placeholderIcon = new FontIcon
         {
@@ -463,7 +463,7 @@ public sealed partial class MessageBubble : UserControl
             MinWidth = 220,
             MaxWidth = 320,
             Padding = new Thickness(12, 10, 14, 10),
-            Background = ThemeBrush("CardBackgroundFillColorDefaultBrush"),
+            Background = ThemeBrush("MicaGoChatCardBrush"),
             BorderBrush = ThemeBrush("MicaGoSubtleStrokeBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
@@ -578,7 +578,9 @@ public sealed partial class MessageBubble : UserControl
         // The chip overlays the bubble's top corner on the side opposite the
         // sender, exactly like the Flutter client's _ReactionChips placement.
         ReactionChip.HorizontalAlignment = outgoing ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-        BubbleBlocks.Margin = visible ? new Thickness(0, 10, 0, 0) : new Thickness(0);
+        // Flutter C81: reserve room above the bubble so the chip overlaps only its
+        // own bubble (~6px) instead of poking into the row above.
+        BubbleBlocks.Margin = visible ? new Thickness(0, 20, 0, 0) : new Thickness(0);
     }
 
     private void ApplyEffectAndFooter(Message message, bool outgoing)

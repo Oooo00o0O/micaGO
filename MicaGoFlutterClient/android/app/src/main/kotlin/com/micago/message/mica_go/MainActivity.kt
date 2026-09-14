@@ -14,7 +14,10 @@ import android.graphics.Shader
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
+import android.view.View
+import android.view.ViewGroup
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlin.math.roundToInt
@@ -22,8 +25,11 @@ import kotlin.math.roundToInt
 class MainActivity : FlutterActivity() {
     private val channelName = "micago/keepalive"
     private val shareChannelName = "micago/share"
+    private val scrollCaptureChannelName = "micago/scroll_capture"
     private val shareTargetCategory = "com.micago.message.SHARE_TARGET"
     private var shareChannel: MethodChannel? = null
+    private var scrollCaptureChannel: MethodChannel? = null
+    private var scrollCaptureInstalled = false
     private var pendingShare: Map<String, Any?>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -50,13 +56,42 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        scrollCaptureChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            scrollCaptureChannelName,
+        )
         handleShareIntent(intent, emit = false)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        installScrollCapture()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleShareIntent(intent, emit = true)
+    }
+
+    // The FlutterView is only attached after configureFlutterEngine runs.
+    private fun installScrollCapture() {
+        if (scrollCaptureInstalled || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val channel = scrollCaptureChannel ?: return
+        val view = findFlutterView(window.decorView) ?: return
+        view.scrollCaptureHint = View.SCROLL_CAPTURE_HINT_INCLUDE
+        view.setScrollCaptureCallback(FlutterScrollCapture(window, view, channel))
+        scrollCaptureInstalled = true
+    }
+
+    private fun findFlutterView(view: View): FlutterView? {
+        if (view is FlutterView) return view
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                findFlutterView(view.getChildAt(i))?.let { return it }
+            }
+        }
+        return null
     }
 
     private fun startKeepAlive() {

@@ -79,9 +79,13 @@ public sealed class ShellViewModel : IAsyncDisposable
         catch when (cached.Count > 0) { SyncStatus = "Offline cache"; }
         try{ActionCapabilities=await _api.GetMessageActionCapabilitiesAsync(cancellationToken);}catch{ActionCapabilities=new(false,false,false);}
 
-        _realtime = new RealtimeSyncService(_api, _services.Cache, _services.ChatPreferences);
+        _realtime = new RealtimeSyncService(_api, _services.Cache, _services.ChatPreferences, _services.Connection.ReselectRouteAsync);
         _realtime.MessagesChanged += OnRealtimeMessagesChanged;
-        _realtime.StatusChanged += (_, status) => Dispatch(() => { SyncStatus = status; StateChanged?.Invoke(this, EventArgs.Empty); });
+        _realtime.StatusChanged += (_, status) =>
+        {
+            _services.Connection.SetRealtimeLive(status == "Live");
+            Dispatch(() => { SyncStatus = status; StateChanged?.Invoke(this, EventArgs.Empty); });
+        };
         _realtime.Start();
     }
 

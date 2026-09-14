@@ -593,7 +593,7 @@ class _VideoAttachmentState extends State<_VideoAttachment> {
                       child: Text(
                         widget.attachment.totalBytes > 0
                             ? _formatSize(widget.attachment.totalBytes)
-                            : 'Video',
+                            : MicaLocalizations.of(context).t('chat.video'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -867,9 +867,9 @@ class _PreviewUnavailableAttachment extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('TIFF image'),
+                  Text(MicaLocalizations.of(context).t('chat.tiffImage')),
                   Text(
-                    'Preview not available yet',
+                    MicaLocalizations.of(context).t('chat.previewUnavailable'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
@@ -1166,10 +1166,16 @@ class _AudioAttachmentState extends State<_AudioAttachment> {
                               shape: const CircleBorder(),
                               child: IconButton(
                                 tooltip: _failed
-                                    ? 'Audio unavailable'
+                                    ? MicaLocalizations.of(
+                                        context,
+                                      ).t('chat.audioUnavailable')
                                     : playing
-                                    ? 'Pause'
-                                    : 'Play',
+                                    ? MicaLocalizations.of(
+                                        context,
+                                      ).t('chat.pause')
+                                    : MicaLocalizations.of(
+                                        context,
+                                      ).t('chat.play'),
                                 onPressed: _failed ? null : _toggle,
                                 color: scheme.primary,
                                 icon: Icon(
@@ -1414,7 +1420,9 @@ class _FileAttachment extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Attachment actions',
+                  tooltip: MicaLocalizations.of(
+                    context,
+                  ).t('chat.attachmentActions'),
                   color: scheme.onSurfaceVariant,
                   onPressed: () => showAttachmentActions(
                     context,

@@ -14,8 +14,8 @@ import '../../app/router.dart';
 import '../../core/app_controller.dart';
 import '../../core/network/notification_display.dart';
 import '../../core/network/update_check.dart';
+import '../../core/network/websocket_client.dart';
 import '../../core/l10n/app_localizations.dart';
-import '../../core/models/connection_profile.dart';
 import '../../core/network/connection_candidate.dart';
 import '../../core/network/device_identity.dart';
 import '../../core/storage/local_cache_store.dart';
@@ -89,7 +89,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (profile != null)
                     _RouteSwitcher(
                       app: app,
-                      profile: profile,
                       onEdit: () => context.push(Routes.connection),
                     )
                   else
@@ -282,82 +281,149 @@ class _TwoActionRow extends StatelessWidget {
   }
 }
 
-/// C26: when the server advertises more than one route (multiple LAN interfaces,
-/// or LAN + Public), let the user pick which one to use. "Automatic" keeps the
-/// LAN-first behaviour; picking a specific route pins it (persisted) and the app
-/// reconnects through it.
-class _RouteSwitcher extends StatelessWidget {
+/// C85: every advertised route with its full address and live status. The
+/// radio marks the route in use; tapping an available route switches to it
+/// now and keeps it until it drops, after which selection is automatic again.
+/// Rows that are still being checked or are unavailable can't be tapped — the
+/// check only decides that, it never switches or disconnects.
+class _RouteSwitcher extends StatefulWidget {
   final AppController app;
-  final ConnectionProfile profile;
 
   /// C76: the connection card is the single entry point for editing the
   /// pairing (the old duplicate "Edit connection" button is gone).
   final VoidCallback onEdit;
-  const _RouteSwitcher({
-    required this.app,
-    required this.profile,
-    required this.onEdit,
-  });
+  const _RouteSwitcher({required this.app, required this.onEdit});
+
+  @override
+  State<_RouteSwitcher> createState() => _RouteSwitcherState();
+}
+
+class _RouteSwitcherState extends State<_RouteSwitcher> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(widget.app.probeAllRoutes());
+  }
+
+  Future<void> _switchTo(String baseUrl) async {
+    final strings = MicaLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await widget.app.selectRoute(baseUrl);
+    final key = switch (result) {
+      RouteSwitchResult.switched => 'settings.routeSwitchedToast',
+      RouteSwitchResult.fellBack => 'settings.routeFellBackToast',
+      RouteSwitchResult.unreachable => 'settings.routeSwitchFailedToast',
+      RouteSwitchResult.superseded => null,
+    };
+    if (key == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(strings.t(key))));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final app = widget.app;
     final strings = MicaLocalizations.of(context);
-    final candidates = app.connectionCandidates;
-    final activeBase = app.activeCandidate?.baseUrl;
-    final pinned = profile.selectedBaseUrl;
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
-    String labelFor(ConnectionCandidate c) {
-      final host = Uri.tryParse(c.baseUrl)?.host ?? c.baseUrl;
-      return '${c.label} · $host';
-    }
+    return ListenableBuilder(
+      listenable: Listenable.merge([app, app.ws]),
+      builder: (context, _) {
+        final routes = app.routeOptions;
+        final active = app.activeCandidate?.baseUrl;
+        final switching = app.switchingRoute;
+        final statuses = {
+          for (final c in routes)
+            c.baseUrl: routeRowStatus(
+              baseUrl: c.baseUrl,
+              switchingTo: switching,
+              activeBaseUrl: active,
+              realtimeConnected: app.ws.status == WsStatus.connected,
+              probing: app.isProbingRoute(c.baseUrl),
+              probe: app.routeProbes[c.baseUrl],
+            ),
+        };
+        final activeStatus = statuses[active];
+        final inUse = switching != null && statuses.containsKey(switching)
+            ? switching
+            : activeStatus == RouteRowStatus.connected ||
+                  activeStatus == RouteRowStatus.connecting
+            ? active
+            : null;
+        final muted = scheme.onSurface.withValues(alpha: 0.38);
 
-    return Card(
-      child: RadioGroup<String?>(
-        groupValue: pinned,
-        onChanged: (v) => app.selectRoute(v),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                strings.t('settings.route'),
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+        Widget statusText(String baseUrl, RouteRowStatus status) {
+          final ms = app.routeProbes[baseUrl]?.latency?.inMilliseconds;
+          String withMs(String label) => ms == null ? label : '$label · $ms ms';
+          return switch (status) {
+            RouteRowStatus.switching => Text(
+              strings.t('settings.routeSwitching'),
+              style: TextStyle(color: scheme.primary),
             ),
-            RadioListTile<String?>(
-              value: null,
-              title: Text(strings.t('settings.autoRoute')),
-              subtitle: Text(strings.t('settings.autoRouteBody')),
-              dense: true,
+            RouteRowStatus.connected => Text(
+              withMs(strings.t('settings.routeConnected')),
+              style: TextStyle(color: scheme.primary),
             ),
-            for (final c in candidates)
-              RadioListTile<String?>(
-                value: c.baseUrl,
-                title: Text(labelFor(c)),
-                subtitle: c.baseUrl == activeBase
-                    ? Text(
-                        strings.t('settings.connected'),
-                        style: TextStyle(color: scheme.primary),
-                      )
-                    : Text(c.baseUrl),
-                secondary: c.baseUrl == activeBase
-                    ? Icon(Icons.check_circle, color: scheme.primary, size: 20)
-                    : null,
-                dense: true,
-              ),
-            const Divider(height: 1),
-            ListTile(
-              leading: _leadingIcon(Icons.edit_outlined),
-              title: Text(strings.t('settings.editConnection')),
-              subtitle: Text(strings.t('settings.editConnectionBody')),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: onEdit,
+            RouteRowStatus.connecting => Text(
+              strings.t('settings.routeConnecting'),
             ),
-          ],
-        ),
-      ),
+            RouteRowStatus.checking => Text(
+              strings.t('settings.routeChecking'),
+              style: TextStyle(color: muted),
+            ),
+            RouteRowStatus.available => Text(
+              withMs(strings.t('settings.routeReachable')),
+            ),
+            RouteRowStatus.unavailable => Text(
+              strings.t('settings.routeUnreachable'),
+              style: TextStyle(color: muted),
+            ),
+          };
+        }
+
+        return Card(
+          child: RadioGroup<String>(
+            groupValue: inUse,
+            onChanged: (value) {
+              if (value == null || value == inUse) return;
+              if (statuses[value] != RouteRowStatus.available) return;
+              unawaited(_switchTo(value));
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    strings.t('settings.route'),
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+                for (final c in routes)
+                  RadioListTile<String>(
+                    value: c.baseUrl,
+                    enabled:
+                        c.baseUrl == inUse ||
+                        statuses[c.baseUrl] == RouteRowStatus.available,
+                    title: Text(c.baseUrl),
+                    subtitle: statusText(c.baseUrl, statuses[c.baseUrl]!),
+                    dense: true,
+                  ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: _leadingIcon(Icons.edit_outlined),
+                  title: Text(strings.t('settings.editConnection')),
+                  subtitle: Text(strings.t('settings.editConnectionBody')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: widget.onEdit,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -376,7 +442,7 @@ class _DeviceRegisterDebug extends StatefulWidget {
 }
 
 class _DeviceRegisterDebugState extends State<_DeviceRegisterDebug> {
-  String _diagnostics = 'Loading…';
+  String _diagnostics = MicaLocalizations.current.t('common.loading');
   bool _busy = false;
 
   @override
@@ -416,12 +482,14 @@ class _DeviceRegisterDebugState extends State<_DeviceRegisterDebug> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.cloud_upload_outlined),
-            label: const Text('Register device now'),
+            label: Text(
+              MicaLocalizations.of(context).t('settings.registerDeviceNow'),
+            ),
           ),
           secondary: OutlinedButton.icon(
             onPressed: _busy ? null : _refresh,
             icon: const Icon(Icons.refresh),
-            label: const Text('Refresh'),
+            label: Text(MicaLocalizations.of(context).t('common.refresh')),
           ),
         ),
         const SizedBox(height: 16),
@@ -830,7 +898,7 @@ class _TestContactCardState extends State<_TestContactCard> {
     if (!ok) {
       TopBanner.show(
         context,
-        'Could not update the test contact',
+        MicaLocalizations.of(context).t('settings.testContactUpdateFailed'),
         kind: TopBannerKind.error,
       );
     }
@@ -1002,7 +1070,10 @@ class _HiddenItemsCardState extends State<_HiddenItemsCard> {
             trailing: const Icon(Icons.chevron_right),
             onTap: _openContacts,
           ),
-          ChatPreferenceStatus(preferences: widget.app.chatPreferences),
+          ChatPreferenceStatus(
+            preferences: widget.app.chatPreferences,
+            showDescription: false,
+          ),
         ],
       ),
     );
@@ -1070,7 +1141,10 @@ class HiddenContactsPage extends StatelessWidget {
       emptyKey: 'settings.noHiddenContacts',
       restoredKey: 'settings.releasedContacts',
       changes: app.chatPreferences,
-      header: ChatPreferenceStatus(preferences: app.chatPreferences),
+      footer: ChatPreferenceStatus(
+        preferences: app.chatPreferences,
+        padding: const EdgeInsets.fromLTRB(4, 16, 4, 0),
+      ),
       load: app.hiddenChats,
       restore: app.releaseHiddenChats,
       rowOf: (context, chat) => _HiddenRow(
@@ -1085,7 +1159,7 @@ class HiddenContactsPage extends StatelessWidget {
 
 class _HiddenItemsPage<T> extends StatefulWidget {
   final Listenable? changes;
-  final Widget? header;
+  final Widget? footer;
   final String title;
   final String countKey;
   final IconData emptyIcon;
@@ -1098,7 +1172,7 @@ class _HiddenItemsPage<T> extends StatefulWidget {
   const _HiddenItemsPage({
     super.key,
     this.changes,
-    this.header,
+    this.footer,
     required this.title,
     required this.countKey,
     required this.emptyIcon,
@@ -1215,26 +1289,30 @@ class _HiddenItemsPageState<T> extends State<_HiddenItemsPage<T>> {
               onPressed: () => setState(() => _selectMode = true),
             ),
       ],
-      child: Column(
-        children: [
-          if (widget.header != null) widget.header!,
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _items.isEmpty
-                ? _HiddenEmptyState(
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _items.isEmpty
+          ? Column(
+              children: [
+                Expanded(
+                  child: _HiddenEmptyState(
                     icon: widget.emptyIcon,
                     label: strings.t(widget.emptyKey),
-                  )
-                : Column(
-                    children: [
-                      Expanded(child: _list(strings)),
-                      if (_selectMode) _restoreBar(strings),
-                    ],
                   ),
-          ),
-        ],
-      ),
+                ),
+                if (widget.footer != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: widget.footer,
+                  ),
+              ],
+            )
+          : Column(
+              children: [
+                Expanded(child: _list(strings)),
+                if (_selectMode) _restoreBar(strings),
+              ],
+            ),
     );
   }
 
@@ -1257,6 +1335,7 @@ class _HiddenItemsPageState<T> extends State<_HiddenItemsPage<T>> {
             ],
           ),
         ),
+        ?widget.footer,
       ],
     );
   }
@@ -1359,7 +1438,7 @@ class _HiddenEmptyState extends StatelessWidget {
 }
 
 String _hiddenMessageTitle(MessageModel? message) {
-  if (message == null) return 'Message';
+  if (message == null) return MicaLocalizations.current.t('common.message');
   return displayText(message) ?? messagePreviewText(message);
 }
 
@@ -1452,12 +1531,22 @@ class _ChatBackgroundPicker extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(exists ? 'Custom image selected' : 'Default background'),
+                  Text(
+                    MicaLocalizations.of(context).t(
+                      exists
+                          ? 'settings.customBackground'
+                          : 'settings.defaultBackground',
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     exists
-                        ? 'Shown behind message history and the input area.'
-                        : 'Choose any local image for your chat screen.',
+                        ? MicaLocalizations.of(
+                            context,
+                          ).t('settings.backgroundShown')
+                        : MicaLocalizations.of(
+                            context,
+                          ).t('settings.backgroundPick'),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -1473,12 +1562,14 @@ class _ChatBackgroundPicker extends StatelessWidget {
             primary: FilledButton.icon(
               onPressed: () => _pick(context),
               icon: const Icon(Icons.photo_library_outlined),
-              label: const Text('Change image'),
+              label: Text(
+                MicaLocalizations.of(context).t('settings.changeImage'),
+              ),
             ),
             secondary: OutlinedButton.icon(
               onPressed: () => theme.clearChatBackground(),
               icon: const Icon(Icons.delete_outline),
-              label: const Text('Remove'),
+              label: Text(MicaLocalizations.of(context).t('common.remove')),
             ),
           )
         else
@@ -1487,7 +1578,9 @@ class _ChatBackgroundPicker extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: () => _pick(context),
               icon: const Icon(Icons.photo_library_outlined),
-              label: const Text('Choose image'),
+              label: Text(
+                MicaLocalizations.of(context).t('settings.chooseImage'),
+              ),
             ),
           ),
       ],
@@ -1506,14 +1599,22 @@ class _ChatBackgroundPicker extends StatelessWidget {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-          const SnackBar(content: Text('Chat background updated')),
+          SnackBar(
+            content: Text(
+              MicaLocalizations.of(context).t('settings.backgroundUpdated'),
+            ),
+          ),
         );
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-          const SnackBar(content: Text('Could not use that image')),
+          SnackBar(
+            content: Text(
+              MicaLocalizations.of(context).t('chat.imageUnusable'),
+            ),
+          ),
         );
     }
   }
@@ -1624,7 +1725,7 @@ class _AppearanceCard extends StatelessWidget {
             const Divider(height: 28),
 
             Text(
-              'Chat background',
+              MicaLocalizations.of(context).t('settings.chatBackground'),
               style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 8),
@@ -1826,7 +1927,7 @@ class _AboutBodyState extends State<_AboutBody> {
               _AboutInfoTile(
                 icon: Icons.auto_awesome_rounded,
                 title: strings.t('settings.version'),
-                value: 'Iolite v$kAppVersion',
+                value: 'Muscovite v$kAppVersion',
                 onTap: _handleVersionTap,
               ),
               const Divider(height: 1),

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../../core/l10n/app_localizations.dart';
 
 class AvatarCropScreen extends StatefulWidget {
   final String imagePath;
@@ -53,7 +54,7 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
     return Scaffold(
       backgroundColor: scheme.surface,
       appBar: AppBar(
-        title: const Text('Crop Avatar'),
+        title: Text(MicaLocalizations.of(context).t('chat.cropAvatar')),
         actions: [
           TextButton(
             onPressed: _busy ? null : _useCrop,
@@ -62,7 +63,7 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Use'),
+                : Text(MicaLocalizations.of(context).t('chat.useCrop')),
           ),
         ],
       ),
@@ -107,7 +108,7 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Drag and pinch to frame the avatar.',
+                  MicaLocalizations.of(context).t('chat.cropHint'),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),

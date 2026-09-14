@@ -231,11 +231,11 @@ private struct ContactsCard: View {
                 }
             }
             if contacts.status == .notDetermined {
-                Text("Contacts are optional and local-only. Grant access to show names for handles and create handle rules more easily; contacts are never uploaded.")
+                Text("Contacts access is optional and stays on this Mac. It shows names for handles and makes handle rules easier to create. Contacts are never uploaded.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else if !contacts.isAuthorized {
-                Text("Contacts permission is managed by macOS. Open System Settings → Privacy & Security → Contacts and enable micaGO Companion. Without it, contact names and photos may be unavailable — the app still works using the raw phone/email handles where supported.")
+                Text("macOS manages Contacts access. Open System Settings → Privacy & Security → Contacts and turn on micaGO Companion. Without it, contact names may not show, but chats still work with phone numbers or email addresses.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let error = contacts.lastError {
@@ -244,7 +244,7 @@ private struct ContactsCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text("Optional and local-only. Contacts are read on this Mac to show names for handles and help you create rules. They are never uploaded, stored in the relay, or sent in push.")
+                Text("Optional, and read only on this Mac. Contacts help show names for handles and create rules. They are never uploaded, saved to the relay, or sent in pushes.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -262,7 +262,7 @@ private struct ContactSearchCard: View {
     var body: some View {
         SectionCard(title: L10n.tr("sync.findContact")) {
             if !contacts.isAuthorized {
-                Text("Enable Contacts access (see above) to search for people and create handle rules.")
+                Text("Allow Contacts access above to search for people and create handle rules.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 TextField("Search name, phone, or email", text: $query)
@@ -315,7 +315,7 @@ private struct DefaultPolicyCard: View {
             }
             .pickerStyle(.menu)
 
-            Text("Rules below override the default sync policy for a specific chat or handle. Chat rules win over handle rules; both win over the default.")
+            Text("These rules override the default policy for one chat or handle. Chat rules win over handle rules, and both win over the default.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -365,8 +365,8 @@ private struct ChatsCard: View {
     }
 
     private func ruleStatus(forChat guid: String) -> String {
-        guard let rule = model.storedRule(kind: "chat", value: guid) else { return "default policy" }
-        return "sync: \(rule.syncMode)"
+        guard let rule = model.storedRule(kind: "chat", value: guid) else { return String(localized: "default policy") }
+        return String(localized: "sync: \(rule.syncMode)")
     }
 }
 
@@ -380,7 +380,7 @@ private struct RulesOverviewCard: View {
         SectionCard(title: L10n.tr("sync.activeRules")) {
             let rules = model.syncRules?.rules ?? []
             if rules.isEmpty {
-                Text("No overrides — the default policy applies to everything.")
+                Text("No overrides. The default policy applies to everything.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 ForEach(rules) { rule in
@@ -437,7 +437,7 @@ struct RuleEditorSheet: View {
             }
             .pickerStyle(.segmented)
 
-            Text("Blocking sync stops future messages for this target from being saved to the relay. Messages already synced are kept.")
+            Text("Blocking stops new messages for this target from being saved to the relay. Messages already synced stay.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 

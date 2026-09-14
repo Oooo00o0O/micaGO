@@ -391,8 +391,8 @@ enum APIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .badResponse: return "Unexpected response from the server."
-        case .status(let code): return "Server returned HTTP \(code)."
+        case .badResponse: return String(localized: "Unexpected response from the server.")
+        case .status(let code): return String(localized: "Server returned HTTP \(code).")
         case .message(let msg): return msg
         }
     }

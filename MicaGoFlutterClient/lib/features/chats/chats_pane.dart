@@ -340,7 +340,7 @@ class _NoSelection extends StatelessWidget {
           Icon(Icons.forum_outlined, size: 56, color: scheme.outline),
           const SizedBox(height: 12),
           Text(
-            'Select a chat',
+            MicaLocalizations.of(context).t('chat.selectChat'),
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),

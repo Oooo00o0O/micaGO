@@ -1,3 +1,5 @@
+import '../../core/l10n/app_localizations.dart';
+
 /// The single client-side mapping from the server's service decision to a
 /// display/behavior category. The server is authoritative: C21 it computes one
 /// message-aware `effectiveService` ("imessage" | "sms" | "rcs" | "unknown")
@@ -53,7 +55,7 @@ extension ChatServiceDisplay on ChatService {
     ChatService.imessage => 'iMessage',
     ChatService.sms => 'SMS',
     ChatService.rcs => 'RCS',
-    ChatService.unknown => 'Unknown',
+    ChatService.unknown => MicaLocalizations.current.t('common.unknown'),
   };
 
   /// iMessage is always sendable. SMS is sendable only when the server's

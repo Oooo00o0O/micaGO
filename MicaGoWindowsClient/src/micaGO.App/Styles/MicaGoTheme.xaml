@@ -20,6 +20,13 @@
             <StaticResource x:Key="MicaGoComposerBrush"
                             ResourceKey="MicaGoContactBarBrush" />
             <SolidColorBrush x:Key="MicaGoSubtleStrokeBrush" Color="#12000000" />
+            <!-- W-UI8: chips/cards in the thread. Same values as SubtleFillColorSecondary /
+                 CardBackgroundFillColorDefault; ChatSurfaceBrushes turns them solid
+                 while a custom chat background is set. -->
+            <SolidColorBrush x:Key="MicaGoChatChipBrush" Color="#09000000" />
+            <SolidColorBrush x:Key="MicaGoChatCardBrush" Color="#B3FFFFFF" />
+            <!-- Flutter _ChatBackground: white 30% over the picked image. -->
+            <SolidColorBrush x:Key="MicaGoChatBackgroundScrimBrush" Color="#4DFFFFFF" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Default">
             <StaticResource x:Key="MicaGoChatSurfaceBrush"
@@ -37,6 +44,10 @@
             <StaticResource x:Key="MicaGoComposerBrush"
                             ResourceKey="MicaGoContactBarBrush" />
             <SolidColorBrush x:Key="MicaGoSubtleStrokeBrush" Color="#16FFFFFF" />
+            <SolidColorBrush x:Key="MicaGoChatChipBrush" Color="#0FFFFFFF" />
+            <SolidColorBrush x:Key="MicaGoChatCardBrush" Color="#0DFFFFFF" />
+            <!-- Flutter _ChatBackground: black 38% over the picked image. -->
+            <SolidColorBrush x:Key="MicaGoChatBackgroundScrimBrush" Color="#61000000" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="MicaGoChatSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -48,6 +59,9 @@
             <SolidColorBrush x:Key="MicaGoIncomingMessageBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="MicaGoComposerBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="MicaGoSubtleStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="MicaGoChatChipBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="MicaGoChatCardBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="MicaGoChatBackgroundScrimBrush" Color="#00000000" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
     <CornerRadius x:Key="MicaGoCardCornerRadius">4</CornerRadius>

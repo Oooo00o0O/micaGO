@@ -17,6 +17,19 @@ fi
 BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 OUT="${1:-$HOME/.micago/bin/micago}"
 
+# cgo links the backend with the system toolchain. On a macOS newer than the
+# selected Xcode, xcrun pairs Xcode's older linker with the Command Line Tools'
+# newer SDK and linking fails; the Command Line Tools linker matches its own SDK.
+if [ -z "${DEVELOPER_DIR:-}" ] && [ -x /Library/Developer/CommandLineTools/usr/bin/clang ]; then
+  export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+fi
+# Without an explicit target, cgo's C objects target the build host's macOS and
+# the binary refuses to launch on older systems.
+BACKEND_MIN_MACOS="${BACKEND_MIN_MACOS:-13.0}"
+export MACOSX_DEPLOYMENT_TARGET="$BACKEND_MIN_MACOS"
+export CGO_CFLAGS="${CGO_CFLAGS:--O2 -g} -mmacosx-version-min=$BACKEND_MIN_MACOS"
+export CGO_LDFLAGS="${CGO_LDFLAGS:--O2 -g} -mmacosx-version-min=$BACKEND_MIN_MACOS"
+
 mkdir -p "$(dirname "$OUT")"
 export GOCACHE="${GOCACHE:-$PWD/.gocache}"
 go build \

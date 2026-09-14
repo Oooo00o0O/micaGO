@@ -184,7 +184,7 @@ final class BackendController: ObservableObject {
         let line = Self.probeVersionLine(at: resolved.path)
         launchedVersionLine = line
         if line == nil {
-            staleBinaryWarning = "The selected backend (\(resolved.source)) does not report a version — it predates v0.15 and is missing recent sync fixes. Rebuild it: MicaGoServer/micago-server/scripts/build-backend.sh"
+            staleBinaryWarning = String(localized: "The selected backend (\(resolved.source)) doesn't report a version, so it predates v0.15 and lacks recent sync fixes. Rebuild it with MicaGoServer/micago-server/scripts/build-backend.sh")
         } else if resolved.source == "override" {
             // An override pins an exact binary; warn if a newer build exists elsewhere.
             let overrideDate = Self.modificationDate(resolved.path)
@@ -193,7 +193,7 @@ final class BackendController: ObservableObject {
             let bundled = Bundle.main.resourceURL?.appendingPathComponent("micago").path
             let newerBundled = bundled.map { FileManager.default.isExecutableFile(atPath: $0) && Self.modificationDate($0) > overrideDate } ?? false
             staleBinaryWarning = (newerCached || newerBundled)
-                ? "A newer backend build exists, but the override path pins an older one. Clear the override or update it."
+                ? String(localized: "A newer backend build exists, but the override path points to an older one. Clear the override or update it.")
                 : nil
         } else {
             staleBinaryWarning = nil
@@ -504,16 +504,16 @@ final class BackendController: ObservableObject {
     private func scheduleRestartIfEnabled(kind: BackendFailureKind) {
         guard autoRestart else { nextRestartInfo = nil; return }
         if kind == .fullDiskAccess {
-            nextRestartInfo = "Will not auto-restart: Full Disk Access is required."
+            nextRestartInfo = String(localized: "Will not auto-restart: Full Disk Access is required.")
             return
         }
         if restartAttempt >= maxConsecutiveCrashes {
-            nextRestartInfo = "Stopped after \(maxConsecutiveCrashes) crashes — start manually."
+            nextRestartInfo = String(localized: "Stopped after \(maxConsecutiveCrashes) crashes. Start it manually.")
             return
         }
         let delay = backoff[min(restartAttempt, backoff.count - 1)]
         restartAttempt += 1
-        nextRestartInfo = "Restarting in \(Int(delay))s (attempt \(restartAttempt) of \(maxConsecutiveCrashes))…"
+        nextRestartInfo = String(localized: "Restarting in \(Int(delay))s (attempt \(restartAttempt) of \(maxConsecutiveCrashes))…")
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             guard self.autoRestart, !self.intentionalStop, self.process == nil else { return }
@@ -566,14 +566,14 @@ final class BackendController: ObservableObject {
 
     private func summarize(kind: BackendFailureKind, code: Int32) -> String {
         switch kind {
-        case .fullDiskAccess: return "Full Disk Access is required to read the Messages database."
-        case .addressInUse: return "The listen address is already in use (another server may be running)."
+        case .fullDiskAccess: return String(localized: "Full Disk Access is required to read the Messages database.")
+        case .addressInUse: return String(localized: "The listen address is already in use. Another server may be running.")
         case .configInvalid:
             if let last = lastStderrLine, !last.isEmpty {
-                return "Server config error: \(last)"
+                return String(localized: "Server config error: \(last)")
             }
-            return "The server configuration is missing or invalid (~/.micago/config.yaml)."
-        case .messagesNotRunning: return "Messages.app is required for sending."
+            return String(localized: "The server configuration is missing or invalid (~/.micago/config.yaml).")
+        case .messagesNotRunning: return String(localized: "Messages.app is required for sending.")
         case .unknown: return lastStderrLine ?? "Backend exited with code \(code)."
         }
     }
@@ -620,13 +620,13 @@ enum ServerDisplayState: Equatable {
 
     var label: String {
         switch self {
-        case .notInstalled: return "No backend installed"
-        case .stopped: return "Stopped"
-        case .starting, .startingUnreachable: return "Starting…"
-        case .running: return "Running"
-        case .stopping: return "Stopping…"
-        case .externalUnmanaged: return "External server (unmanaged)"
-        case .crashed: return "Crashed"
+        case .notInstalled: return String(localized: "No backend installed")
+        case .stopped: return String(localized: "Stopped")
+        case .starting, .startingUnreachable: return String(localized: "Starting…")
+        case .running: return String(localized: "Running")
+        case .stopping: return String(localized: "Stopping…")
+        case .externalUnmanaged: return String(localized: "External server (unmanaged)")
+        case .crashed: return String(localized: "Crashed")
         }
     }
 
@@ -634,13 +634,13 @@ enum ServerDisplayState: Equatable {
     /// "Stopped", "External"). The longer `label` is used elsewhere.
     var compactLabel: String {
         switch self {
-        case .notInstalled: return "Not installed"
-        case .stopped: return "Stopped"
-        case .starting, .startingUnreachable: return "Starting…"
-        case .running: return "Running"
-        case .stopping: return "Stopping…"
-        case .externalUnmanaged: return "External"
-        case .crashed: return "Crashed"
+        case .notInstalled: return String(localized: "Not installed")
+        case .stopped: return String(localized: "Stopped")
+        case .starting, .startingUnreachable: return String(localized: "Starting…")
+        case .running: return String(localized: "Running")
+        case .stopping: return String(localized: "Stopping…")
+        case .externalUnmanaged: return String(localized: "External")
+        case .crashed: return String(localized: "Crashed")
         }
     }
 

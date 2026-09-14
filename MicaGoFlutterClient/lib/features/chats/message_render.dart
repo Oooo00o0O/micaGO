@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 
 import 'models/message_model.dart';
+import '../../core/l10n/app_localizations.dart';
 
 /// The chat-list timestamp label, phone-style (C46). [now] is injected so this
 /// stays pure/testable; [use24h] follows the system clock setting; [locale] is
@@ -512,19 +513,19 @@ bool isScreenSendEffect(MessageSendEffect e) =>
     e == MessageSendEffect.spotlight ||
     e == MessageSendEffect.echo;
 
-const Map<String, String> _effectLabels = {
-  'com.apple.MobileSMS.expressivesend.impact': 'Sent with Slam',
-  'com.apple.MobileSMS.expressivesend.loud': 'Sent with Loud',
-  'com.apple.MobileSMS.expressivesend.gentle': 'Sent with Gentle',
-  'com.apple.MobileSMS.expressivesend.invisibleink': 'Sent with Invisible Ink',
-  'com.apple.messages.effect.CKEchoEffect': 'Sent with Echo',
-  'com.apple.messages.effect.CKSpotlightEffect': 'Sent with Spotlight',
-  'com.apple.messages.effect.CKHappyBirthdayEffect': 'Sent with Balloons',
-  'com.apple.messages.effect.CKConfettiEffect': 'Sent with Confetti',
-  'com.apple.messages.effect.CKHeartEffect': 'Sent with Love',
-  'com.apple.messages.effect.CKLasersEffect': 'Sent with Lasers',
-  'com.apple.messages.effect.CKFireworksEffect': 'Sent with Fireworks',
-  'com.apple.messages.effect.CKSparklesEffect': 'Sent with Celebration',
+const Map<String, String> _effectLabelKeys = {
+  'com.apple.MobileSMS.expressivesend.impact': 'chat.effect.slam',
+  'com.apple.MobileSMS.expressivesend.loud': 'chat.effect.loud',
+  'com.apple.MobileSMS.expressivesend.gentle': 'chat.effect.gentle',
+  'com.apple.MobileSMS.expressivesend.invisibleink': 'chat.effect.invisibleInk',
+  'com.apple.messages.effect.CKEchoEffect': 'chat.effect.echo',
+  'com.apple.messages.effect.CKSpotlightEffect': 'chat.effect.spotlight',
+  'com.apple.messages.effect.CKHappyBirthdayEffect': 'chat.effect.balloons',
+  'com.apple.messages.effect.CKConfettiEffect': 'chat.effect.confetti',
+  'com.apple.messages.effect.CKHeartEffect': 'chat.effect.love',
+  'com.apple.messages.effect.CKLasersEffect': 'chat.effect.lasers',
+  'com.apple.messages.effect.CKFireworksEffect': 'chat.effect.fireworks',
+  'com.apple.messages.effect.CKSparklesEffect': 'chat.effect.celebration',
 };
 
 MessageSendEffect sendEffectFor(String? expressiveSendStyleId) {
@@ -563,7 +564,9 @@ MessageSendEffect sendEffectFor(String? expressiveSendStyleId) {
 String? effectLabel(String? expressiveSendStyleId) {
   final id = expressiveSendStyleId?.trim() ?? '';
   if (id.isEmpty) return null;
-  return _effectLabels[id] ?? 'Sent with an effect';
+  return MicaLocalizations.current.t(
+    _effectLabelKeys[id] ?? 'chat.effect.generic',
+  );
 }
 
 /// Label for a retracted/unsent (or unrecoverable-placeholder) message. Own
@@ -571,10 +574,14 @@ String? effectLabel(String? expressiveSendStyleId) {
 /// name ("Alex unsent a message") when available, falling back to a neutral
 /// phrasing when it isn't.
 String retractedLabel(MessageModel m, {String? senderName}) {
-  if (m.isFromMe) return 'You unsent a message';
+  if (m.isFromMe) return MicaLocalizations.current.t('chat.youUnsent');
   final name = senderName?.trim() ?? '';
-  if (name.isNotEmpty) return '$name unsent a message';
-  return 'This message was unsent';
+  if (name.isNotEmpty) {
+    return MicaLocalizations.current
+        .t('chat.nameUnsent')
+        .replaceAll('{name}', name);
+  }
+  return MicaLocalizations.current.t('chat.messageWasUnsent');
 }
 
 String? editedMarker(MessageModel m) =>
@@ -599,7 +606,7 @@ MessageDeliveryState deliveryStateFor(MessageModel m) {
 }
 
 String attachmentPreviewLabel(AttachmentModel attachment) {
-  return '[附件]';
+  return MicaLocalizations.current.t('chat.attachmentPreview');
 }
 
 String messagePreviewText(MessageModel message) {
@@ -608,14 +615,18 @@ String messagePreviewText(MessageModel message) {
   if (message.attachments.isNotEmpty) {
     return attachmentPreviewLabel(message.attachments.first);
   }
-  if (message.isRetracted) return 'Message unsent';
-  return '[附件]';
+  if (message.isRetracted) {
+    return MicaLocalizations.current.t('chat.messageUnsent');
+  }
+  return MicaLocalizations.current.t('chat.attachmentPreview');
 }
 
 String chatListPreviewText(String? raw, {bool hasMessage = false}) {
   final clean = sanitizeMessageText(raw);
   if (clean == null || isControlLikeText(clean)) {
-    return hasMessage ? '[附件]' : '';
+    return hasMessage
+        ? MicaLocalizations.current.t('chat.attachmentPreview')
+        : '';
   }
   final normalized = clean.toLowerCase();
   switch (normalized) {
@@ -625,21 +636,21 @@ String chatListPreviewText(String? raw, {bool hasMessage = false}) {
     case 'obj':
     case 'object':
     case 'null':
-      return '[附件]';
+      return MicaLocalizations.current.t('chat.attachmentPreview');
   }
   switch (clean) {
     case '（贴纸）':
     case '（图片）':
-      return '[附件]';
+      return MicaLocalizations.current.t('chat.attachmentPreview');
     case '（语音）':
     case '（音频）':
-      return '[附件]';
+      return MicaLocalizations.current.t('chat.attachmentPreview');
     case '（视频）':
-      return '[附件]';
+      return MicaLocalizations.current.t('chat.attachmentPreview');
     case '（链接）':
-      return '[附件]';
+      return MicaLocalizations.current.t('chat.attachmentPreview');
     case '（文件）':
-      return '[附件]';
+      return MicaLocalizations.current.t('chat.attachmentPreview');
   }
   return clean;
 }
@@ -651,12 +662,12 @@ String resolveSenderLabel(
   required bool isGroup,
   String? contactName,
 }) {
-  if (m.isFromMe) return 'You';
+  if (m.isFromMe) return MicaLocalizations.current.t('common.you');
   final name = contactName?.trim() ?? '';
   if (name.isNotEmpty) return name;
   final handle = m.handleId?.trim() ?? '';
   if (handle.isNotEmpty) return handle;
-  return 'Unknown';
+  return MicaLocalizations.current.t('common.unknown');
 }
 
 /// Short, user-facing label for a service/group event. The server does not
@@ -665,7 +676,7 @@ String resolveSenderLabel(
 String serviceEventLabel(MessageModel m) {
   final t = sanitizeMessageText(m.text);
   if (t != null && !isControlLikeText(t)) return t;
-  return 'Conversation event';
+  return MicaLocalizations.current.t('chat.conversationEvent');
 }
 
 // ---------------------------------------------------------------------------

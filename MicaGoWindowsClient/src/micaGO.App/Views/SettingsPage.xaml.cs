@@ -17,7 +17,7 @@ public sealed partial class SettingsPage : Page
     private ServerSyncSettings? _syncSettings;
     private int _aboutTapCount;
     private DateTimeOffset _lastAboutTap;
-    public SettingsPage() { InitializeComponent(); Loaded += SettingsPage_Loaded; }
+    public SettingsPage() { InitializeComponent(); Loaded += SettingsPage_Loaded; Unloaded += SettingsPage_Unloaded; }
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
@@ -28,7 +28,7 @@ public sealed partial class SettingsPage : Page
     {
         var services=AppServices.Current; var connection=services.Connection;
         ConnectionTitle.Text=connection.Profile?.ServerName??"micaGO server";
-        ConnectionSubtitle.Text=connection.ActiveEndpoint is { } active ? $"{(active.Endpoint.Kind==EndpointKind.Lan?"LAN":"Public")} · {active.Endpoint.BaseUrl} · {active.Latency.TotalMilliseconds:0} ms" : "Not connected";
+        ConnectionSubtitle.Text=services.Localization["route"];services.Connection.RoutesChanged-=Connection_RoutesChanged;services.Connection.RoutesChanged+=Connection_RoutesChanged;BuildRouteRows();_=ProbeRoutesQuietlyAsync();
         NotificationToggle.IsOn=(await services.Cache.GetSettingAsync("settings.notifications"))!="false";
         NotificationPreviewToggle.IsOn=(await services.Cache.GetSettingAsync("settings.notificationPreview"))!="false";
         TrayToggle.IsOn=(await services.Cache.GetSettingAsync("settings.tray"))=="true";
@@ -179,9 +179,9 @@ public sealed partial class SettingsPage : Page
     private void ApplyText()
     {
         var l=AppServices.Current.Localization;
-        ConnectionHeader.Text=l["connection"];BehaviorHeader.Text=l["general"];TrayLabel.Text=l["tray"];TrayDescription.Text=l["trayDescription"];LanguageLabel.Text=l["language"];SmsLabel.Text=l["allowSms"];SmsDescription.Text=l["allowSmsDescription"];
-        AppearanceHeader.Text=l["appearance"];ThemeLabel.Text=l["theme"];EmojiHeader.Text=l["emoji"];TwemojiFlagsLabel.Text=l["twemojiFlags"];TwemojiFlagsDescription.Text=l["twemojiFlagsDescription"];ChatBackgroundLabel.Text=l["chatBackground"];ChooseBackgroundButton.Content=l["choose"];ClearBackgroundButton.Content=l["removeBackground"];BubbleColorLabel.Text=l["bubbleColor"];BubbleFollowSystemLabel.Text=l["followSystemAccent"];BubbleColorPickLabel.Text=l["customColor"];BubbleColorButton.Content=l["choose"];
-        NotificationsHeader.Text=l["notifications"];NotificationLabel.Text=l["notify"];NotificationDescription.Text=l["notificationDescription"];NotificationPreviewLabel.Text=l["notificationPreview"];NotificationPreviewDescription.Text=l["notificationPreviewDescription"];NotificationInfo.Message=l["notificationHistorySilent"];
+        ConnectionHeader.Text=l["connection"];ConnectionSubtitle.Text=l["route"];UnpairLabel.Text=l["unpair"];UnpairDescription.Text=l["unpairDescription"];DisconnectButton.Content=l["unpairConfirm"];BuildRouteRows();BehaviorHeader.Text=l["general"];TrayLabel.Text=l["tray"];TrayDescription.Text=l["trayDescription"];LanguageLabel.Text=l["language"];SmsLabel.Text=l["allowSms"];SmsDescription.Text=l["allowSmsDescription"];
+        AppearanceHeader.Text=l["appearance"];ThemeLabel.Text=l["theme"];LocalizePickers(l);EmojiHeader.Text=l["emoji"];TwemojiFlagsLabel.Text=l["twemojiFlags"];TwemojiFlagsDescription.Text=l["twemojiFlagsDescription"];ChatBackgroundLabel.Text=l["chatBackground"];ChooseBackgroundButton.Content=l["choose"];ClearBackgroundButton.Content=l["removeBackground"];BubbleColorLabel.Text=l["bubbleColor"];BubbleFollowSystemLabel.Text=l["followSystemAccent"];BubbleColorPickLabel.Text=l["presetColors"];BubbleColorButtonText.Text=l["customColor"];BuildBubbleSwatches();
+        NotificationsHeader.Text=l["notifications"];NotificationLabel.Text=l["notify"];NotificationDescription.Text=l["notificationDescription"];NotificationPreviewLabel.Text=l["notificationPreview"];NotificationPreviewDescription.Text=l["notificationPreviewDescription"];
         ContactsHeader.Text=l["contacts"];ContactsHint.Text=l["contactsHint"];ImportVcfLabel.Text=l["importVcf"];ImportVcfButton.Content=l["chooseVcf"];ClearVcfButton.Content=l["clearContacts"];HiddenMessagesLabel.Text=l["hiddenMessages"];HiddenContactsLabel.Text=l["hiddenContacts"];StorageHeader.Text=l["cache"];CacheLabel.Text=l["cacheLabel"];ClearCacheHint.Text=l["clearCache"];ClearCacheButton.Content=l["clearCacheButton"];
         TestingHeader.Text=l["developer"];TestContactLabel.Text=l["testContact"];TestContactHint.Text=l["testContactHint"];BackupHeader.Text=l["backupRestore"];BackupLabel.Text=l["backupLabel"];ExportBackupButton.Content=l["exportBackup"];ImportBackupButton.Content=l["importBackup"];
         AboutHeader.Text=l["about"];AboutSubtitleText.Text=l["aboutSubtitle"];AboutVersionText.Text=string.Format(l["version"],typeof(SettingsPage).Assembly.GetName().Version?.ToString(3)??"?");AboutGitHubLabel.Text=l["viewOnGitHub"];AboutUpdateLabel.Text=l["checkUpdates"];if(!_checkingUpdate&&_updateUrl is null)AboutUpdateStatus.Text=l["updateCheckNow"];if(_updateUrl is null&&!_checkingUpdate)AboutUpdateButton.Content=l["updateCheckButton"];AboutOpenSourceLabel.Text=l["openSource"];AboutAttributionText.Text=l["twemojiAttribution"];AboutDisclaimerText.Text=l["twemojiDisclaimer"];
@@ -203,8 +203,56 @@ public sealed partial class SettingsPage : Page
     }
     private async void ClearBackgroundButton_Click(object sender,RoutedEventArgs e){await AppServices.Current.Appearance.ClearChatBackgroundAsync();UpdateBackgroundStatus();if(_context is not null)await _context.Host.RefreshAppearanceAsync();}
     private async void BubbleFollowSystemToggle_Toggled(object sender,RoutedEventArgs e){if(_loading)return;BubbleColorCard.Visibility=BubbleFollowSystemToggle.IsOn?Visibility.Collapsed:Visibility.Visible;await AppServices.Current.Appearance.SetBubbleFollowsSystemAsync(BubbleFollowSystemToggle.IsOn);if(_context is not null)await _context.Host.RefreshAppearanceAsync();}
-    private async void BubbleColorPicker_ColorChanged(ColorPicker sender,ColorChangedEventArgs args){if(_loading||BubbleFollowSystemToggle.IsOn)return;await AppServices.Current.Appearance.SetBubbleColorAsync(args.NewColor);if(_context is not null)await _context.Host.RefreshAppearanceAsync();}
+    // W-UI8: the ring picker fires on every drag step, so it only previews; the
+    // colour is saved once when the flyout closes (it used to rewrite the setting
+    // and refresh every bubble per step).
+    private void BubbleColorPicker_ColorChanged(ColorPicker sender,ColorChangedEventArgs args){if(_loading)return;BubbleColorPreview.Background=new Microsoft.UI.Xaml.Media.SolidColorBrush(args.NewColor);}
+    private async void BubbleColorFlyout_Closed(object sender,object e){if(_loading||BubbleFollowSystemToggle.IsOn)return;var color=BubbleColorPicker.Color;if(SameRgb(color,AppServices.Current.Appearance.BubbleColor)){UpdateBubbleColorSelection();return;}await ApplyBubbleColorAsync(color);}
+    private async Task ApplyBubbleColorAsync(Windows.UI.Color color){await AppServices.Current.Appearance.SetBubbleColorAsync(color);UpdateBubbleColorSelection();if(_context is not null)await _context.Host.RefreshAppearanceAsync();}
+    private static bool SameRgb(Windows.UI.Color a,Windows.UI.Color b)=>a.R==b.R&&a.G==b.G&&a.B==b.B;
+    private void BuildBubbleSwatches()
+    {
+        var l=AppServices.Current.Localization;
+        BubbleColorSwatches.Children.Clear();
+        foreach(var (key,color) in MicaGo.App.Services.AppearanceService.BubbleColorPresets)
+        {
+            // Ellipse inside a transparent button: a coloured Button background
+            // would be replaced by the template's grey on hover.
+            var dot=new Grid{Width=28,Height=28};
+            dot.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse{Fill=new Microsoft.UI.Xaml.Media.SolidColorBrush(color)});
+            dot.Children.Add(new FontIcon{Glyph="\uE73E",FontSize=14,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Visibility=Visibility.Collapsed,
+                Foreground=new Microsoft.UI.Xaml.Media.SolidColorBrush(MicaGo.App.Services.AppearanceService.ShouldUseDarkText(color)?Microsoft.UI.Colors.Black:Microsoft.UI.Colors.White)});
+            var swatch=new Button{Width=36,Height=36,Padding=new Thickness(0),CornerRadius=new CornerRadius(18),BorderThickness=new Thickness(0),
+                Background=new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),Tag=color,Content=dot};
+            ToolTipService.SetToolTip(swatch,l["color."+key]);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(swatch,l["color."+key]);
+            swatch.Click+=async(_,_)=>{if(_loading)return;BubbleColorPicker.Color=color;await ApplyBubbleColorAsync(color);};
+            BubbleColorSwatches.Children.Add(swatch);
+        }
+        UpdateBubbleColorSelection();
+    }
+    private void UpdateBubbleColorSelection()
+    {
+        var current=AppServices.Current.Appearance.BubbleColor;
+        foreach(var child in BubbleColorSwatches.Children)
+        {
+            if(child is Button{Tag:Windows.UI.Color color,Content:Grid{Children:var parts}}&&parts.Count>1)
+                parts[1].Visibility=SameRgb(color,current)?Visibility.Visible:Visibility.Collapsed;
+        }
+        BubbleColorPreview.Background=new Microsoft.UI.Xaml.Media.SolidColorBrush(current);
+    }
     private async void TwemojiFlagsToggle_Toggled(object sender,RoutedEventArgs e){if(_loading)return;await AppServices.Current.Appearance.SetTwemojiFlagsEnabledAsync(TwemojiFlagsToggle.IsOn);if(_context is not null)await _context.Host.RefreshAppearanceAsync();}
+    // ComboBox shows a snapshot of the selected item, so re-select after renaming.
+    // _loading keeps the selection handlers from saving or re-applying settings.
+    private void LocalizePickers(LocalizationService l)
+    {
+        var wasLoading=_loading;_loading=true;
+        var theme=ThemePicker.SelectedIndex;var language=LanguagePicker.SelectedIndex;
+        ((ComboBoxItem)ThemePicker.Items[0]).Content=l["themeSystem"];((ComboBoxItem)ThemePicker.Items[1]).Content=l["themeLight"];((ComboBoxItem)ThemePicker.Items[2]).Content=l["themeDark"];
+        ((ComboBoxItem)LanguagePicker.Items[0]).Content=l["themeSystem"];
+        ThemePicker.SelectedIndex=-1;ThemePicker.SelectedIndex=theme;LanguagePicker.SelectedIndex=-1;LanguagePicker.SelectedIndex=language;
+        _loading=wasLoading;
+    }
     private void UpdateBackgroundStatus(){if(ChatBackgroundStatus is null)return;var l=AppServices.Current.Localization;var custom=!string.IsNullOrWhiteSpace(AppServices.Current.Appearance.ChatBackgroundPath)&&File.Exists(AppServices.Current.Appearance.ChatBackgroundPath);ChatBackgroundStatus.Text=l[custom?"customBackground":"defaultMicaBackground"];ClearBackgroundButton.IsEnabled=custom;}
     private async void ImportVcfButton_Click(object sender,RoutedEventArgs e)
     {
@@ -280,5 +328,75 @@ public sealed partial class SettingsPage : Page
     }
 
     private void ApplySection(string section){GeneralSection.Visibility=section=="general"?Visibility.Visible:Visibility.Collapsed;AppearanceSection.Visibility=section=="appearance"?Visibility.Visible:Visibility.Collapsed;NotificationSection.Visibility=section=="notifications"?Visibility.Visible:Visibility.Collapsed;DataSection.Visibility=section=="data"?Visibility.Visible:Visibility.Collapsed;AboutSection.Visibility=section=="about"?Visibility.Visible:Visibility.Collapsed;}
-    private async void DisconnectButton_Click(object sender,RoutedEventArgs e){var d=new ContentDialog{XamlRoot=XamlRoot,Title="Disconnect this PC?",Content="The saved server route and token will be removed from Windows Credential Manager.",PrimaryButtonText="Disconnect",CloseButtonText="Cancel",DefaultButton=ContentDialogButton.Close};if(await d.ShowAsync()!=ContentDialogResult.Primary)return;await AppServices.Current.Connection.DisconnectAsync();_context?.Host.NavigateToConnection();}
+    // W-UI9: Flutter's route card. The radio marks the route in use; only available
+    // routes can be picked. Checking a route only greys its row — it never
+    // switches or disconnects.
+    private bool _buildingRoutes;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _routeInfoTimer;
+    private void SettingsPage_Unloaded(object sender,RoutedEventArgs e){AppServices.Current.Connection.RoutesChanged-=Connection_RoutesChanged;_routeInfoTimer?.Stop();}
+    private void Connection_RoutesChanged(object? sender,EventArgs e){if(!DispatcherQueue.HasThreadAccess){DispatcherQueue.TryEnqueue(BuildRouteRows);return;}BuildRouteRows();}
+    private static async Task ProbeRoutesQuietlyAsync(){try{await AppServices.Current.Connection.ProbeRoutesAsync();}catch{}}
+    private void BuildRouteRows()
+    {
+        if(RouteList is null)return;
+        var connection=AppServices.Current.Connection;var l=AppServices.Current.Localization;
+        var routes=connection.RouteOptions;var active=connection.ActiveEndpoint?.Endpoint.BaseUrl;var switching=connection.SwitchingRoute;
+        var statuses=new Dictionary<string,RouteRowStatus>(StringComparer.OrdinalIgnoreCase);
+        foreach(var route in routes)statuses[route.BaseUrl]=RouteSelection.RowStatus(route.BaseUrl,switching,active,connection.RealtimeLive,connection.IsProbing(route.BaseUrl),connection.ProbeFor(route.BaseUrl));
+        var inUse=RouteSelection.InUse(statuses,switching,active);
+        _buildingRoutes=true;
+        try
+        {
+            RouteList.Children.Clear();
+            foreach(var route in routes)
+            {
+                var status=statuses[route.BaseUrl];
+                var latency=connection.ProbeFor(route.BaseUrl)?.Latency is { } value?$" · {value.TotalMilliseconds:0} ms":string.Empty;
+                var (key,suffix,accent)=status switch
+                {
+                    RouteRowStatus.Switching=>("routeSwitching","",true),
+                    RouteRowStatus.Connected=>("routeConnected",latency,true),
+                    RouteRowStatus.Connecting=>("routeConnecting","",false),
+                    RouteRowStatus.Checking=>("routeChecking","",false),
+                    RouteRowStatus.Available=>("routeAvailable",latency,false),
+                    _=>("routeUnavailable","",false),
+                };
+                var isInUse=string.Equals(route.BaseUrl,inUse,StringComparison.OrdinalIgnoreCase);
+                var text=new StackPanel{Spacing=1};
+                text.Children.Add(new TextBlock{Text=route.BaseUrl,TextTrimming=TextTrimming.CharacterEllipsis});
+                var caption=new TextBlock{Text=l[key]+suffix,FontSize=12};
+                // Unaccented captions inherit the radio's foreground, so disabled rows grey out.
+                if(accent&&Application.Current.Resources.TryGetValue("AccentTextFillColorPrimaryBrush",out var brush)&&brush is Microsoft.UI.Xaml.Media.Brush accentBrush)caption.Foreground=accentBrush;
+                text.Children.Add(caption);
+                var radio=new RadioButton{GroupName="micago-routes",Content=text,Tag=route.BaseUrl,IsChecked=isInUse,IsEnabled=isInUse||status==RouteRowStatus.Available};
+                radio.Checked+=RouteRadio_Checked;
+                RouteList.Children.Add(radio);
+            }
+        }
+        finally{_buildingRoutes=false;}
+    }
+    private async void RouteRadio_Checked(object sender,RoutedEventArgs e)
+    {
+        if(_buildingRoutes||_loading||sender is not RadioButton{Tag:string baseUrl})return;
+        var result=await AppServices.Current.Connection.SwitchRouteAsync(baseUrl);
+        BuildRouteRows();
+        var key=result switch{RouteSwitchResult.Switched=>"routeSwitchedToast",RouteSwitchResult.FellBack=>"routeFellBackToast",RouteSwitchResult.Unreachable=>"routeSwitchFailedToast",_=>null};
+        if(key is null)return;
+        RouteInfoBar.Message=AppServices.Current.Localization[key];
+        RouteInfoBar.Severity=result==RouteSwitchResult.Switched?InfoBarSeverity.Success:InfoBarSeverity.Warning;
+        RouteInfoBar.IsOpen=true;
+        if(_routeInfoTimer is null){_routeInfoTimer=DispatcherQueue.CreateTimer();_routeInfoTimer.Interval=TimeSpan.FromSeconds(4);_routeInfoTimer.IsRepeating=false;_routeInfoTimer.Tick+=(_,_)=>RouteInfoBar.IsOpen=false;}
+        _routeInfoTimer.Stop();_routeInfoTimer.Start();
+    }
+    // W-UI9 (Flutter C76): unpairing wipes the saved server, the token and the local
+    // message/media cache, so the action and its dialog say exactly that.
+    private async void DisconnectButton_Click(object sender,RoutedEventArgs e)
+    {
+        var services=AppServices.Current;var l=services.Localization;
+        var dialog=new ContentDialog{XamlRoot=XamlRoot,Title=l["unpairTitle"],Content=new TextBlock{Text=l["unpairBody"],TextWrapping=TextWrapping.Wrap},PrimaryButtonText=l["unpairConfirm"],CloseButtonText=l["cancel"],DefaultButton=ContentDialogButton.Close};
+        if(await dialog.ShowAsync()!=ContentDialogResult.Primary)return;
+        await services.Connection.DisconnectAsync();
+        try{await services.Cache.ClearContentCacheAsync();await services.Media.ClearAsync();}catch{}
+        _context?.Host.NavigateToConnection();
+    }
 }
