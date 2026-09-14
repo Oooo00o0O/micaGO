@@ -442,7 +442,7 @@ class _DeviceRegisterDebug extends StatefulWidget {
 }
 
 class _DeviceRegisterDebugState extends State<_DeviceRegisterDebug> {
-  String _diagnostics = 'Loading…';
+  String _diagnostics = MicaLocalizations.current.t('common.loading');
   bool _busy = false;
 
   @override
@@ -482,12 +482,14 @@ class _DeviceRegisterDebugState extends State<_DeviceRegisterDebug> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.cloud_upload_outlined),
-            label: const Text('Register device now'),
+            label: Text(
+              MicaLocalizations.of(context).t('settings.registerDeviceNow'),
+            ),
           ),
           secondary: OutlinedButton.icon(
             onPressed: _busy ? null : _refresh,
             icon: const Icon(Icons.refresh),
-            label: const Text('Refresh'),
+            label: Text(MicaLocalizations.of(context).t('common.refresh')),
           ),
         ),
         const SizedBox(height: 16),
@@ -896,7 +898,7 @@ class _TestContactCardState extends State<_TestContactCard> {
     if (!ok) {
       TopBanner.show(
         context,
-        'Could not update the test contact',
+        MicaLocalizations.of(context).t('settings.testContactUpdateFailed'),
         kind: TopBannerKind.error,
       );
     }
@@ -1436,7 +1438,7 @@ class _HiddenEmptyState extends StatelessWidget {
 }
 
 String _hiddenMessageTitle(MessageModel? message) {
-  if (message == null) return 'Message';
+  if (message == null) return MicaLocalizations.current.t('common.message');
   return displayText(message) ?? messagePreviewText(message);
 }
 
@@ -1529,12 +1531,22 @@ class _ChatBackgroundPicker extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(exists ? 'Custom image selected' : 'Default background'),
+                  Text(
+                    MicaLocalizations.of(context).t(
+                      exists
+                          ? 'settings.customBackground'
+                          : 'settings.defaultBackground',
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     exists
-                        ? 'Shown behind message history and the input area.'
-                        : 'Choose any local image for your chat screen.',
+                        ? MicaLocalizations.of(
+                            context,
+                          ).t('settings.backgroundShown')
+                        : MicaLocalizations.of(
+                            context,
+                          ).t('settings.backgroundPick'),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -1550,12 +1562,14 @@ class _ChatBackgroundPicker extends StatelessWidget {
             primary: FilledButton.icon(
               onPressed: () => _pick(context),
               icon: const Icon(Icons.photo_library_outlined),
-              label: const Text('Change image'),
+              label: Text(
+                MicaLocalizations.of(context).t('settings.changeImage'),
+              ),
             ),
             secondary: OutlinedButton.icon(
               onPressed: () => theme.clearChatBackground(),
               icon: const Icon(Icons.delete_outline),
-              label: const Text('Remove'),
+              label: Text(MicaLocalizations.of(context).t('common.remove')),
             ),
           )
         else
@@ -1564,7 +1578,9 @@ class _ChatBackgroundPicker extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: () => _pick(context),
               icon: const Icon(Icons.photo_library_outlined),
-              label: const Text('Choose image'),
+              label: Text(
+                MicaLocalizations.of(context).t('settings.chooseImage'),
+              ),
             ),
           ),
       ],
@@ -1583,14 +1599,22 @@ class _ChatBackgroundPicker extends StatelessWidget {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-          const SnackBar(content: Text('Chat background updated')),
+          SnackBar(
+            content: Text(
+              MicaLocalizations.of(context).t('settings.backgroundUpdated'),
+            ),
+          ),
         );
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-          const SnackBar(content: Text('Could not use that image')),
+          SnackBar(
+            content: Text(
+              MicaLocalizations.of(context).t('chat.imageUnusable'),
+            ),
+          ),
         );
     }
   }
@@ -1701,7 +1725,7 @@ class _AppearanceCard extends StatelessWidget {
             const Divider(height: 28),
 
             Text(
-              'Chat background',
+              MicaLocalizations.of(context).t('settings.chatBackground'),
               style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 8),

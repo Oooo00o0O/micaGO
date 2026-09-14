@@ -101,7 +101,7 @@ public sealed partial class ShellPage : Page
         _viewModel.Messages.CollectionChanged += Messages_CollectionChanged;
         ChatList.ItemsSource = _viewModel.Chats;
         MessageList.ItemsSource = _viewModel.Messages;
-        ConnectionStatusText.Text = $"Connected · {api.BaseUrl}";
+        ConnectionStatusText.Text = $"{AppServices.Current.Localization["statusConnected"]} · {api.BaseUrl}";
         _timestampTimer.Start();
         try
         {
@@ -109,7 +109,7 @@ public sealed partial class ShellPage : Page
             UpdateTrayContacts();
             if (_viewModel.Chats.Count > 0) { ChatList.SelectedIndex = 0; await SelectChatAsync(_viewModel.Chats[0]); }
         }
-        catch (Exception exception) { ConnectionStatusText.Text = $"Could not initialize: {exception.Message}"; }
+        catch (Exception exception) { ConnectionStatusText.Text = string.Format(AppServices.Current.Localization["initFailed"], exception.Message); }
     }
 
     private void ApplyLocalizedText()
@@ -126,6 +126,7 @@ public sealed partial class ShellPage : Page
         ToolTipService.SetToolTip(VoiceButton,l["voiceMessage"]);
         ToolTipService.SetToolTip(JumpToBottomButton,l["jumpToBottom"]);
         VoiceCancelButton.Content=l["cancel"];
+        ToolTipService.SetToolTip(SettingsBackButton,l["back"]);
         SelectionForwardButton.Content=l["forward"];
         SelectionHideButton.Content=l["hide"];
     }
@@ -133,7 +134,7 @@ public sealed partial class ShellPage : Page
     private void ViewModel_StateChanged(object? sender, EventArgs e)
     {
         if (_viewModel is null) return;
-        ConnectionStatusText.Text = $"{_viewModel.SyncStatus} · {AppServices.Current.Connection.Api?.BaseUrl}";
+        ConnectionStatusText.Text = $"{StatusLabel(_viewModel.SyncStatus)} · {AppServices.Current.Connection.Api?.BaseUrl}";
         OlderMessagesProgress.IsActive=_viewModel.IsLoadingOlder;
         OlderMessagesProgress.Visibility=_viewModel.IsLoadingOlder?Visibility.Visible:Visibility.Collapsed;
         UpdateThreadSubtitle();
@@ -822,7 +823,7 @@ public sealed partial class ShellPage : Page
         }
         catch(Exception exception)
         {
-            ConnectionStatusText.Text=$"Could not paste attachment: {exception.Message}";
+            ConnectionStatusText.Text=string.Format(AppServices.Current.Localization["pasteFailed"], exception.Message);
         }
     }
 
@@ -973,12 +974,12 @@ public sealed partial class ShellPage : Page
         var menu = new MenuFlyout();
         if(message.IsPending && message.DeliveryState==MessageDeliveryState.Failed && message.Media.Count>0)
         {
-            var retry=new MenuFlyoutItem{Text="Retry"};retry.Click+=async(_,_)=>await _viewModel.RetryAttachmentAsync(message);menu.Items.Add(retry);
+            var retry=new MenuFlyoutItem{Text=AppServices.Current.Localization["retry"]};retry.Click+=async(_,_)=>await _viewModel.RetryAttachmentAsync(message);menu.Items.Add(retry);
         }
-        if(message.IsPending&&message.DeliveryState==MessageDeliveryState.Sending&&message.Media.Count>0){var cancel=new MenuFlyoutItem{Text="Cancel upload"};cancel.Click+=(_,_)=>_viewModel.CancelAttachmentUpload(message);menu.Items.Add(cancel);}
+        if(message.IsPending&&message.DeliveryState==MessageDeliveryState.Sending&&message.Media.Count>0){var cancel=new MenuFlyoutItem{Text=AppServices.Current.Localization["cancelUpload"]};cancel.Click+=(_,_)=>_viewModel.CancelAttachmentUpload(message);menu.Items.Add(cancel);}
         if (message.IsOutgoing && !message.IsPending)
         {
-            if(_viewModel.ActionCapabilities.CanEdit){var edit = new MenuFlyoutItem { Text = AppServices.Current.Localization["edit"] }; edit.Click += async (_, _) => { var box = new TextBox { Text = message.Text, AcceptsReturn = true }; var dialog = new ContentDialog { Title = AppServices.Current.Localization["edit"], Content = box, PrimaryButtonText = AppServices.Current.Localization["edit"], CloseButtonText = "Cancel", XamlRoot = XamlRoot }; if (await dialog.ShowAsync() == ContentDialogResult.Primary) await _viewModel.EditAsync(message, box.Text); }; menu.Items.Add(edit);}
+            if(_viewModel.ActionCapabilities.CanEdit){var edit = new MenuFlyoutItem { Text = AppServices.Current.Localization["edit"] }; edit.Click += async (_, _) => { var box = new TextBox { Text = message.Text, AcceptsReturn = true }; var dialog = new ContentDialog { Title = AppServices.Current.Localization["edit"], Content = box, PrimaryButtonText = AppServices.Current.Localization["edit"], CloseButtonText = AppServices.Current.Localization["cancel"], XamlRoot = XamlRoot }; if (await dialog.ShowAsync() == ContentDialogResult.Primary) await _viewModel.EditAsync(message, box.Text); }; menu.Items.Add(edit);}
             if(_viewModel.ActionCapabilities.CanRetract){var retract = new MenuFlyoutItem { Text = AppServices.Current.Localization["unsend"] }; retract.Click += async (_, _) => await _viewModel.RetractAsync(message); menu.Items.Add(retract);}
         }
         if(message.IsPending||_viewModel.ActionCapabilities.CanDelete){var delete = new MenuFlyoutItem { Text = AppServices.Current.Localization["delete"] }; delete.Click += async (_, _) => await _viewModel.DeleteAsync(message); menu.Items.Add(delete);}
@@ -1008,7 +1009,7 @@ public sealed partial class ShellPage : Page
         }
         catch (Exception exception)
         {
-            ConnectionStatusText.Text = $"Microphone unavailable: {exception.Message}";
+            ConnectionStatusText.Text = string.Format(AppServices.Current.Localization["micUnavailable"], exception.Message);
             return;
         }
         _voiceStartedAt = DateTimeOffset.Now;
@@ -1126,6 +1127,20 @@ public sealed partial class ShellPage : Page
         var selected = SelectedMessages();
         ExitSelectMode();
         if (selected.Count > 0) await _viewModel.HideMessagesAsync(selected);
+    }
+
+    // The realtime loop reports fixed English status words; translate them for display.
+    private static string StatusLabel(string status)
+    {
+        var l = AppServices.Current.Localization;
+        return status switch
+        {
+            "Live" => l["statusLive"],
+            "Catching up" => l["statusCatchingUp"],
+            "Reconnecting" => l["statusReconnecting"],
+            "Offline cache" => l["statusOfflineCache"],
+            _ => status,
+        };
     }
 
     private void UpdateThreadSubtitle()

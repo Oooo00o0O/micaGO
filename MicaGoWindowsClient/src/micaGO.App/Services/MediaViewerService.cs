@@ -14,8 +14,8 @@ public static class MediaViewerService
     public static async Task ShowAsync(XamlRoot root,Message message,Attachment selected)
     {
         var messages=await AppServices.Current.Cache.GetMessagesAsync(message.ChatId,1000);var media=messages.SelectMany(row=>row.Media).Where(item=>item.IsImage||item.IsVideo||item.IsAudio).ToList();var index=Math.Max(0,media.FindIndex(item=>item.Id==selected.Id));if(media.Count==0)media.Add(selected);
-        var host=new Grid{MinWidth=720,MinHeight=520};var dialog=new ContentDialog{XamlRoot=root,Title=selected.FileName,Content=host,CloseButtonText="Close"};
-        dialog.PrimaryButtonText="Save as";dialog.SecondaryButtonText="Open with";
+        var host=new Grid{MinWidth=720,MinHeight=520};var dialog=new ContentDialog{XamlRoot=root,Title=selected.FileName,Content=host,CloseButtonText=AppServices.Current.Localization["close"]};
+        dialog.PrimaryButtonText=AppServices.Current.Localization["saveAs"];dialog.SecondaryButtonText=AppServices.Current.Localization["openWith"];
         async Task RenderAsync()
         {
             host.Children.Clear();var current=media[index];dialog.Title=$"{current.FileName} · {index+1}/{media.Count}";

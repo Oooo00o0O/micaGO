@@ -22,6 +22,32 @@ Four components:
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
 
+## Hardcoded English moved into the language tables (C86 / W-UI10)
+
+- **Flutter:** `MicaLocalizations.current` serves code without a BuildContext
+  (controllers, models, pairing parser, the FCM isolate). It follows the locale
+  the delegate last loaded, else `PlatformDispatcher.locale`; zh-TW/HK/MO now map
+  to Traditional. Widgets still use `MicaLocalizations.of(context)`. Tests run in
+  English, so render/presentation tests keep pinning English (the chat-list
+  placeholder is now `[Attachment]`, `[附件]` in Chinese). Sentinels are not
+  translated: the chat-list subtitle filters `ChatService.unknown` by enum, and
+  `AttachmentModel.displayName` stays `'Attachment'`. Technical diagnostic
+  key/value rows stay English.
+- **Windows:** new keys for the status bar (`StatusLabel` maps the realtime
+  loop's fixed English status words), theme/language ComboBox items
+  (`LocalizePickers` re-selects so the closed box refreshes), both Back
+  tooltips, the media viewer buttons, and pairing/connection errors.
+- **Companion:** SwiftUI literals localize through `Localizable.xcstrings`.
+  Helpers that take `String` (`SectionCard`, `LabeledRow`, `CopyableRow`,
+  `CapabilityRow`, `PermissionRow`, `StatusFlag`, `EndpointGroupHeader`,
+  `AboutInfoButton`, `firebaseFileRow`) render `Text(LocalizedStringKey(…))`;
+  their literals are `extractionState: manual` catalog entries. Ternaries,
+  computed returns, and interpolated titles use `String(localized:)`. Left in
+  English on purpose: `notifResult` and the APIClient test-push results (their
+  color logic reads the English words) and inspector `kv` debug rows.
+  `xcodebuild` does not sync the catalog; new keys come from the build's
+  `.stringsdata` (arm64) and are added by hand.
+
 ## Windows parity with the recent Flutter passes (W-UI9)
 
 - **Route card (Flutter C85):** Settings → Connection lists

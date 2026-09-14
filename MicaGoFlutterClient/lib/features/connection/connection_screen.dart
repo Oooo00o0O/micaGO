@@ -213,7 +213,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                             labelText: strings.t('pair.bearerToken'),
                             prefixIcon: const Icon(Icons.key_outlined),
                             suffixIcon: IconButton(
-                              tooltip: _obscureToken ? 'Show' : 'Hide',
+                              tooltip: MicaLocalizations.of(context).t(
+                                _obscureToken ? 'common.show' : 'common.hide',
+                              ),
                               icon: Icon(
                                 _obscureToken
                                     ? Icons.visibility_outlined
@@ -225,7 +227,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                             ),
                           ),
                           validator: (v) => (v ?? '').trim().isEmpty
-                              ? 'Token is required'
+                              ? MicaLocalizations.of(
+                                  context,
+                                ).t('pair.tokenRequired')
                               : null,
                         ),
                         const SizedBox(height: 20),
@@ -281,11 +285,13 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     final other = label == 'Public' ? _lanUrlCtrl.text : _publicUrlCtrl.text;
     if (raw.isEmpty) {
       if (other.trim().isEmpty) {
-        return 'Enter a Public URL, a LAN URL, or paste connection JSON.';
+        return MicaLocalizations.of(context).t('pair.urlOrJsonRequired');
       }
       return null;
     }
-    return isValidHttpUrl(raw) ? null : 'Enter a valid http(s) origin';
+    return isValidHttpUrl(raw)
+        ? null
+        : MicaLocalizations.of(context).t('pair.invalidOrigin');
   }
 }
 

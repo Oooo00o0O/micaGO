@@ -375,7 +375,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   alignment: Alignment.centerLeft,
                                   color: Theme.of(context).colorScheme.primary,
                                   icon: Icons.mark_chat_read_outlined,
-                                  label: 'Mark read',
+                                  label: MicaLocalizations.of(
+                                    context,
+                                  ).t('chat.markRead'),
                                 ),
                                 secondaryBackground: _SwipeBg(
                                   alignment: Alignment.centerRight,
@@ -385,7 +387,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   icon: m.primary.isPinned
                                       ? Icons.push_pin_outlined
                                       : Icons.push_pin,
-                                  label: m.primary.isPinned ? 'Unpin' : 'Pin',
+                                  label: MicaLocalizations.of(context).t(
+                                    m.primary.isPinned
+                                        ? 'chat.unpin'
+                                        : 'chat.pinShort',
+                                  ),
                                 ),
                                 confirmDismiss: (dir) =>
                                     _onSwipe(context, m, dir),
@@ -775,13 +781,14 @@ class _ChatRow extends StatelessWidget {
     final parts = <String>[
       if (merged.isMerged)
         merged.routes
-            .map((r) => r.service.label)
+            .map((r) => r.service)
+            .where((s) => s != ChatService.unknown)
+            .map((s) => s.label)
             .toSet()
-            .where((l) => l != 'Unknown')
             .join(' · ')
       else if (chat.service != ChatService.unknown)
         chat.service.label,
-      if (chat.isGroup) 'Group',
+      if (chat.isGroup) MicaLocalizations.current.t('chat.group'),
     ].where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty && chat.chatIdentifier != null) {
       return chat.chatIdentifier!;
@@ -1091,11 +1098,11 @@ class _EmptyState extends StatelessWidget {
         SizedBox(height: MediaQuery.of(context).size.height * 0.25),
         const Icon(Icons.chat_bubble_outline, size: 56),
         const SizedBox(height: 12),
-        const Center(child: Text('No chats yet')),
+        Center(child: Text(MicaLocalizations.of(context).t('chat.noChatsYet'))),
         const SizedBox(height: 4),
         Center(
           child: Text(
-            'Pull down to refresh.',
+            MicaLocalizations.of(context).t('chat.pullToRefresh'),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),

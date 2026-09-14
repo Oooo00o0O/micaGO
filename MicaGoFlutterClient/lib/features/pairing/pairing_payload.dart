@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../core/models/connection_profile.dart'
     show ConnectionProfile, ConnectionMode, EndpointRef, connectionModeFromWire;
 import '../../core/network/endpoint_utils.dart';
+import '../../core/l10n/app_localizations.dart';
 
 /// Thrown when a scanned QR code is not a valid MicaGo pairing payload.
 class PairingParseException implements Exception {
@@ -133,7 +134,7 @@ class PairingPayload {
 PairingPayload parsePairingPayload(String raw) {
   final trimmed = raw.trim();
   if (trimmed.isEmpty) {
-    throw const PairingParseException('The QR code was empty.');
+    throw PairingParseException(MicaLocalizations.current.t('pair.qrEmpty'));
   }
 
   final Object? decoded;
@@ -152,7 +153,9 @@ PairingPayload parsePairingPayload(String raw) {
 
   final token = (decoded['token'] as String?)?.trim() ?? '';
   if (token.isEmpty) {
-    throw const PairingParseException('The pairing code is missing the token.');
+    throw PairingParseException(
+      MicaLocalizations.current.t('pair.missingToken'),
+    );
   }
 
   final version = (decoded['version'] as num?)?.toInt() ?? 1;
@@ -197,8 +200,8 @@ PairingPayload _parseV3(Map<String, dynamic> decoded, String token) {
       parsed.where((e) => e.kind != EndpointKind.local && !e.hidden).toList()
         ..sort((a, b) => a.priority.compareTo(b.priority));
   if (usable.isEmpty) {
-    throw const PairingParseException(
-      'The connection has no usable LAN or public endpoint.',
+    throw PairingParseException(
+      MicaLocalizations.current.t('pair.noUsableEndpoint'),
     );
   }
 
@@ -217,12 +220,14 @@ PairingPayload _parseV1(Map<String, dynamic> decoded, String token) {
   final baseUrl = (decoded['baseUrl'] as String?)?.trim() ?? '';
   final wsRaw = (decoded['websocketUrl'] as String?)?.trim();
   if (baseUrl.isEmpty) {
-    throw const PairingParseException(
-      'The pairing code is missing the server URL.',
+    throw PairingParseException(
+      MicaLocalizations.current.t('pair.missingServerUrl'),
     );
   }
   if (!isValidHttpUrl(baseUrl)) {
-    throw const PairingParseException('The server URL must be http or https.');
+    throw PairingParseException(
+      MicaLocalizations.current.t('pair.serverUrlScheme'),
+    );
   }
   _validateWs(wsRaw);
   return PairingPayload(
@@ -272,8 +277,8 @@ PairingPayload _parseV2(Map<String, dynamic> decoded, String token) {
       parsed.where((e) => e.kind != EndpointKind.local && !e.hidden).toList()
         ..sort((a, b) => a.priority.compareTo(b.priority));
   if (usable.isEmpty) {
-    throw const PairingParseException(
-      'The pairing code has no usable LAN or public endpoint.',
+    throw PairingParseException(
+      MicaLocalizations.current.t('pair.noUsableEndpoint'),
     );
   }
 
@@ -282,8 +287,8 @@ PairingPayload _parseV2(Map<String, dynamic> decoded, String token) {
       ? usable.where((e) => e.kind == EndpointKind.lan).toList()
       : usable;
   if (endpoints.isEmpty) {
-    throw const PairingParseException(
-      'The pairing code is LAN-only but has no LAN endpoint.',
+    throw PairingParseException(
+      MicaLocalizations.current.t('pair.lanOnlyNoLan'),
     );
   }
 
@@ -310,7 +315,7 @@ void _validateWs(String? wsRaw) {
   if (wsRaw == null || wsRaw.isEmpty) return;
   final ws = Uri.tryParse(wsRaw);
   if (ws == null || (ws.scheme != 'ws' && ws.scheme != 'wss')) {
-    throw const PairingParseException('The WebSocket URL must be ws or wss.');
+    throw PairingParseException(MicaLocalizations.current.t('pair.wsScheme'));
   }
 }
 

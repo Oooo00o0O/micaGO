@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'contacts_service.dart';
+import '../../core/l10n/app_localizations.dart';
 
 /// People tab: minimal control surface for read-only local contacts matching.
 /// Not an address book — it manages the opt-in and shows matching status.
@@ -25,7 +26,7 @@ class PeopleScreen extends StatelessWidget {
                     const Icon(Icons.contacts_outlined),
                     const SizedBox(width: 8),
                     Text(
-                      'Contacts matching',
+                      MicaLocalizations.of(context).t('contacts.matching'),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const Spacer(),
@@ -34,9 +35,7 @@ class PeopleScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Match chat phone numbers and emails to names from this '
-                  'device\'s contacts. Read-only and local — contacts are never '
-                  'modified or uploaded.',
+                  MicaLocalizations.of(context).t('contacts.matchingBody'),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
@@ -48,7 +47,9 @@ class PeopleScreen extends StatelessWidget {
         if (contacts.status == ContactsStatus.ready) ...[
           const SizedBox(height: 12),
           Text(
-            '${contacts.contacts.length} contacts available for matching',
+            MicaLocalizations.of(context)
+                .t('contacts.available')
+                .replaceAll('{n}', '${contacts.contacts.length}'),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -77,7 +78,7 @@ class _Action extends StatelessWidget {
         return OutlinedButton.icon(
           onPressed: contacts.disable,
           icon: const Icon(Icons.link_off),
-          label: const Text('Turn off contacts matching'),
+          label: Text(MicaLocalizations.of(context).t('contacts.turnOff')),
         );
       case ContactsStatus.denied:
         return Row(
@@ -85,12 +86,14 @@ class _Action extends StatelessWidget {
             FilledButton.icon(
               onPressed: contacts.enable,
               icon: const Icon(Icons.refresh),
-              label: const Text('Try again'),
+              label: Text(MicaLocalizations.of(context).t('common.tryAgain')),
             ),
             const SizedBox(width: 8),
             TextButton(
               onPressed: contacts.openSettings,
-              child: const Text('Open Settings'),
+              child: Text(
+                MicaLocalizations.of(context).t('common.openSettings'),
+              ),
             ),
           ],
         );
@@ -98,7 +101,7 @@ class _Action extends StatelessWidget {
         return FilledButton.icon(
           onPressed: contacts.enable,
           icon: const Icon(Icons.contacts),
-          label: const Text('Enable contacts matching'),
+          label: Text(MicaLocalizations.of(context).t('contacts.turnOn')),
         );
     }
   }
@@ -111,13 +114,22 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String label, Color color) = switch (status) {
-      ContactsStatus.ready => ('On', Colors.green),
+      ContactsStatus.ready => (
+        MicaLocalizations.of(context).t('contacts.statusOn'),
+        Colors.green,
+      ),
       ContactsStatus.requesting => (
-        'Requesting…',
+        MicaLocalizations.of(context).t('contacts.statusRequesting'),
         Theme.of(context).colorScheme.tertiary,
       ),
-      ContactsStatus.denied => ('Denied', Theme.of(context).colorScheme.error),
-      ContactsStatus.disabled => ('Off', Theme.of(context).colorScheme.outline),
+      ContactsStatus.denied => (
+        MicaLocalizations.of(context).t('contacts.statusDenied'),
+        Theme.of(context).colorScheme.error,
+      ),
+      ContactsStatus.disabled => (
+        MicaLocalizations.of(context).t('contacts.statusOff'),
+        Theme.of(context).colorScheme.outline,
+      ),
     };
     return Chip(
       label: Text(label),

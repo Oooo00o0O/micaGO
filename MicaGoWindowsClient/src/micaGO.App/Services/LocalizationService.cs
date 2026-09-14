@@ -120,6 +120,27 @@ public sealed class LocalizationService
         values["unpairTitle"] = traditional ? "解除這台電腦的配對？" : chinese ? "解除这台电脑的配对？" : "Unpair this PC?";
         values["unpairBody"] = traditional ? "這會刪除已儲存的伺服器位址、Windows 認證管理員中的權杖，以及這台電腦的本機快取。Mac 上的訊息不受影響，隨時可以重新配對。" : chinese ? "这会删除已保存的服务器地址、Windows 凭据管理器中的令牌，以及这台电脑的本地缓存。Mac 上的消息不受影响，随时可以重新配对。" : "This removes the saved server address, the token in Windows Credential Manager, and this PC's local cache. Messages on your Mac stay as they are, and you can pair again at any time.";
         values["unpairConfirm"] = traditional ? "解除配對" : chinese ? "解除配对" : "Unpair";
+        // W-UI10: strings that used to be hardcoded English.
+        values["back"] = traditional ? "返回" : chinese ? "返回" : "Back";
+        values["retry"] = traditional ? "重試" : chinese ? "重试" : "Retry";
+        values["cancelUpload"] = traditional ? "取消上傳" : chinese ? "取消上传" : "Cancel upload";
+        values["close"] = traditional ? "關閉" : chinese ? "关闭" : "Close";
+        values["saveAs"] = traditional ? "另存新檔" : chinese ? "另存为" : "Save as";
+        values["openWith"] = traditional ? "開啟方式" : chinese ? "打开方式" : "Open with";
+        values["themeSystem"] = traditional ? "跟隨系統" : chinese ? "跟随系统" : "System";
+        values["themeLight"] = traditional ? "淺色" : chinese ? "浅色" : "Light";
+        values["themeDark"] = traditional ? "深色" : chinese ? "深色" : "Dark";
+        values["credentialsUnavailable"] = traditional ? "Windows 認證管理員無法使用。" : chinese ? "Windows 凭据管理器不可用。" : "Windows Credential Manager is unavailable.";
+        values["serverUnreachable"] = traditional ? "連不上伺服器。" : chinese ? "连不上服务器。" : "Couldn't reach the server.";
+        values["chatWindowFailed"] = traditional ? "已連線，但無法開啟聊天畫面：{0}" : chinese ? "已连接，但无法打开聊天界面：{0}" : "Connected, but the chat window couldn't open: {0}";
+        values["initFailed"] = traditional ? "載入失敗：{0}" : chinese ? "加载失败：{0}" : "Couldn't load: {0}";
+        values["pasteFailed"] = traditional ? "無法貼上附件：{0}" : chinese ? "无法粘贴附件：{0}" : "Couldn't paste the attachment: {0}";
+        values["micUnavailable"] = traditional ? "麥克風無法使用：{0}" : chinese ? "麦克风不可用：{0}" : "Microphone unavailable: {0}";
+        values["statusConnected"] = traditional ? "已連線" : chinese ? "已连接" : "Connected";
+        values["statusLive"] = traditional ? "即時" : chinese ? "实时" : "Live";
+        values["statusCatchingUp"] = traditional ? "正在同步" : chinese ? "正在同步" : "Catching up";
+        values["statusReconnecting"] = traditional ? "正在重新連線" : chinese ? "正在重连" : "Reconnecting";
+        values["statusOfflineCache"] = traditional ? "離線快取" : chinese ? "离线缓存" : "Offline cache";
         values["about"] = traditional ? "關於" : chinese ? "关于" : "About";
         values["aboutSubtitle"] = traditional ? "透過你的 Mac 在 Windows 上使用 iMessage" : chinese ? "通过你的 Mac 在 Windows 上使用 iMessage" : "iMessage on Windows, through your Mac";
         values["version"] = traditional ? "版本 {0} · Muscovite" : chinese ? "版本 {0} · Muscovite" : "Version {0} · Muscovite";

@@ -1,5 +1,6 @@
 import 'chat_service.dart';
 import 'models/chat_summary.dart';
+import '../../core/l10n/app_localizations.dart';
 
 /// C24: builds a route label that includes the concrete handle/address, so
 /// multiple routes with the **same** service (e.g. two iMessage chats on
@@ -34,5 +35,9 @@ String _handleOf(ChatSummary route) {
 /// Short sendability hint for the route detail row. Server-authoritative — never
 /// inferred from the handle/GUID shape.
 String routeSendabilityLabel(ChatSummary route, {required bool allowSmsSend}) {
-  return route.canSendText(allowSmsSend: allowSmsSend) ? 'Can send' : 'Read only';
+  return MicaLocalizations.current.t(
+    route.canSendText(allowSmsSend: allowSmsSend)
+        ? 'chat.canSend'
+        : 'chat.readOnly',
+  );
 }

@@ -5,6 +5,7 @@ import '../../core/models/connection_profile.dart';
 import '../../core/network/api_client.dart';
 import 'onboarding_controller.dart';
 import 'pairing_payload.dart';
+import '../../core/l10n/app_localizations.dart';
 
 enum PairingStage { scanning, preview, testing, success, failure }
 
@@ -52,7 +53,7 @@ class PairingController extends ChangeNotifier {
     if (p == null) return false;
 
     stage = PairingStage.testing;
-    message = 'Testing connection…';
+    message = MicaLocalizations.current.t('pair.testing');
     notifyListeners();
 
     final onboarding = OnboardingController(
@@ -91,8 +92,12 @@ class PairingController extends ChangeNotifier {
     stage = PairingStage.success;
     final active = onboarding.activeEndpoint;
     message = active?.kind == EndpointKind.public
-        ? 'Paired via Public. ${onboarding.status.message}'
-        : 'Paired via LAN. ${onboarding.status.message}';
+        ? MicaLocalizations.current
+              .t('pair.pairedPublic')
+              .replaceAll('{status}', onboarding.status.message)
+        : MicaLocalizations.current
+              .t('pair.pairedLan')
+              .replaceAll('{status}', onboarding.status.message);
     notifyListeners();
     return true;
   }

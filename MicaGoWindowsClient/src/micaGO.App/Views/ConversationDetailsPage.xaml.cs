@@ -27,6 +27,7 @@ public sealed partial class ConversationDetailsPage : Page
 
         var l = AppServices.Current.Localization;
         ParticipantsHeader.Text = l["participants"];
+        ToolTipService.SetToolTip(DetailsBackButton, l["back"]);
         ConversationHeader.Text = l["conversation"];
         MediaHeader.Text = l["sharedMedia"];
         MuteLabel.Text = l["mute"];

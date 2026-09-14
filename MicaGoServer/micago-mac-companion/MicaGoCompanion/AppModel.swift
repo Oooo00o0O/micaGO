@@ -111,7 +111,7 @@ final class AppModel: ObservableObject {
 
     /// Redaction-safe, copyable diagnostics text (no token, no message text).
     var syncDiagnosticsText: String {
-        guard let d = syncDiagnostics else { return "No sync diagnostics yet." }
+        guard let d = syncDiagnostics else { return String(localized: "No sync diagnostics yet.") }
         func ms(_ v: Int64?) -> String { v.map { "\($0)" } ?? "—" }
         return """
         micaGO sync diagnostics
@@ -215,7 +215,7 @@ final class AppModel: ObservableObject {
     func reloadConfig() {
         config = ConfigReader.read()
         if config == nil {
-            lastError = "Could not read \(ConfigReader.configPath). Start the server once to create it."
+            lastError = String(localized: "Could not read \(ConfigReader.configPath). Start the server once to create it.")
         } else if lastError?.contains(ConfigReader.configPath) == true {
             lastError = nil
         }
@@ -283,7 +283,7 @@ final class AppModel: ObservableObject {
 
         authValid = await client.checkAuth()
         guard authValid else {
-            lastError = "The server is up but rejected the token. Check \(ConfigReader.configPath)."
+            lastError = String(localized: "The server is up but rejected the token. Check \(ConfigReader.configPath).")
             return
         }
         await chatPreferences.sync(client: client)
@@ -359,7 +359,7 @@ final class AppModel: ObservableObject {
             publicCheckResult = nil
             lastError = nil
         } catch {
-            lastError = "Could not save public URL: \(error.localizedDescription)"
+            lastError = String(localized: "Could not save public URL: \(error.localizedDescription)")
         }
     }
 
@@ -372,7 +372,7 @@ final class AppModel: ObservableObject {
             publicCheckResult = try await client.checkPublicURL()
             await refresh()
         } catch {
-            lastError = "Could not validate public URL: \(error.localizedDescription)"
+            lastError = String(localized: "Could not validate public URL: \(error.localizedDescription)")
         }
     }
 
@@ -423,7 +423,7 @@ final class AppModel: ObservableObject {
                 return
             }
             guard let baseURL else {
-                helperInstallMessage = "Installed the IMCore helper at \(path). Start the server to turn on Edit, Unsend, and Delete."
+                helperInstallMessage = String(localized: "Installed the IMCore helper at \(path). Start the server to turn on Edit, Unsend, and Delete.")
                 return
             }
             let client = APIClient(baseURL: baseURL, token: token)
@@ -438,7 +438,7 @@ final class AppModel: ObservableObject {
                 // restart it explicitly so the new helper is picked up, then
                 // reload status.
                 BackendController.shared.restart()
-                helperInstallMessage = "Installed the IMCore helper at \(path). Restarting the server to apply…"
+                helperInstallMessage = String(localized: "Installed the IMCore helper at \(path). Restarting the server to apply…")
                 refreshAfterBackendStart()
             }
         }
@@ -458,7 +458,7 @@ final class AppModel: ObservableObject {
                 await refresh()
                 helperInstallMessage = installResultMessage(state: caps.state ?? "missing", path: caps.helper ?? "~/.micago/bin")
             } catch {
-                helperInstallMessage = "Could not re-scan: \(error.localizedDescription)"
+                helperInstallMessage = String(localized: "Could not re-scan: \(error.localizedDescription)")
             }
         }
     }
@@ -480,20 +480,20 @@ final class AppModel: ObservableObject {
                 return
             }
             guard removed else {
-                helperInstallMessage = "No IMCore helper was installed."
+                helperInstallMessage = String(localized: "No IMCore helper was installed.")
                 return
             }
             guard let baseURL else {
-                helperInstallMessage = "Removed the IMCore helper."
+                helperInstallMessage = String(localized: "Removed the IMCore helper.")
                 return
             }
             let client = APIClient(baseURL: baseURL, token: token)
             do {
                 _ = try await client.refreshMessageActions()
                 await refresh()
-                helperInstallMessage = "Removed the IMCore helper."
+                helperInstallMessage = String(localized: "Removed the IMCore helper.")
             } catch {
-                helperInstallMessage = "Removed the IMCore helper. Restart the server to refresh its status."
+                helperInstallMessage = String(localized: "Removed the IMCore helper. Restart the server to refresh its status.")
             }
         }
     }
@@ -505,13 +505,13 @@ final class AppModel: ObservableObject {
     private func installResultMessage(state: String, path: String) -> String {
         switch state {
         case "ready":
-            return "The IMCore helper is ready. Edit, Unsend, and Delete are available."
+            return String(localized: "The IMCore helper is ready. Edit, Unsend, and Delete are available.")
         case "not_runnable":
-            return "Installed at \(path), but the helper won\u{2019}t run. Check that macOS allows it to run."
+            return String(localized: "Installed at \(path), but the helper won\u{2019}t run. Check that macOS allows it to run.")
         case "unsupported_selectors":
-            return "Installed, but this version of macOS doesn’t offer the IMCore actions, so Edit, Unsend, and Delete stay off."
+            return String(localized: "Installed, but this version of macOS doesn’t offer the IMCore actions, so Edit, Unsend, and Delete stay off.")
         default:
-            return "Installed the IMCore helper at \(path), but the backend still reports it as unavailable."
+            return String(localized: "Installed the IMCore helper at \(path), but the backend still reports it as unavailable.")
         }
     }
 
@@ -570,7 +570,7 @@ final class AppModel: ObservableObject {
                                                      syncMode: syncMode, pushMode: pushMode)
             lastError = nil
         } catch {
-            lastError = "Save rule: \(error.localizedDescription)"
+            lastError = String(localized: "Save rule: \(error.localizedDescription)")
         }
     }
 
@@ -583,7 +583,7 @@ final class AppModel: ObservableObject {
             syncRules = try await client.deleteSyncRule(targetKind: targetKind, targetValue: targetValue)
             lastError = nil
         } catch {
-            lastError = "Clear rule: \(error.localizedDescription)"
+            lastError = String(localized: "Clear rule: \(error.localizedDescription)")
         }
     }
 
@@ -596,7 +596,7 @@ final class AppModel: ObservableObject {
             syncRules = try await client.setSyncPolicy(defaultSync: sync, defaultPush: push)
             lastError = nil
         } catch {
-            lastError = "Save policy: \(error.localizedDescription)"
+            lastError = String(localized: "Save policy: \(error.localizedDescription)")
         }
     }
 
@@ -612,7 +612,7 @@ final class AppModel: ObservableObject {
             lastError = nil
             await loadSyncControl()
         } catch {
-            lastError = "Save sync settings: \(error.localizedDescription)"
+            lastError = String(localized: "Save sync settings: \(error.localizedDescription)")
         }
     }
 

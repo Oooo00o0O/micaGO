@@ -214,7 +214,7 @@ void main() {
             ],
           ),
         ),
-        '[附件]',
+        '[Attachment]',
       );
       expect(
         messagePreviewText(
@@ -229,16 +229,16 @@ void main() {
             ],
           ),
         ),
-        '[附件]',
+        '[Attachment]',
       );
-      expect(messagePreviewText(_msg()), '[附件]');
+      expect(messagePreviewText(_msg()), '[Attachment]');
     });
 
     test('sanitizes stale server/cache previews', () {
-      expect(chatListPreviewText('￼', hasMessage: true), '[附件]');
-      expect(chatListPreviewText('obj', hasMessage: true), '[附件]');
-      expect(chatListPreviewText('Message', hasMessage: true), '[附件]');
-      expect(chatListPreviewText('（图片）', hasMessage: true), '[附件]');
+      expect(chatListPreviewText('￼', hasMessage: true), '[Attachment]');
+      expect(chatListPreviewText('obj', hasMessage: true), '[Attachment]');
+      expect(chatListPreviewText('Message', hasMessage: true), '[Attachment]');
+      expect(chatListPreviewText('（图片）', hasMessage: true), '[Attachment]');
       expect(chatListPreviewText('', hasMessage: false), '');
     });
   });

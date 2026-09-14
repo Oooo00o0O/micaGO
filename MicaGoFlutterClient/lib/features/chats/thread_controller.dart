@@ -11,6 +11,7 @@ import 'attachment_panel.dart' show StagedAttachment;
 import 'models/message_model.dart';
 import 'realtime_event_helpers.dart' as rt;
 import 'store/message_collection.dart';
+import '../../core/l10n/app_localizations.dart';
 
 enum ThreadState { loading, loaded, empty, error }
 
@@ -117,7 +118,7 @@ class ThreadController extends ChangeNotifier {
         error = null;
       } else {
         state = ThreadState.error;
-        error = 'Not connected.';
+        error = MicaLocalizations.current.t('common.notConnected');
       }
       _notify();
       return;
@@ -588,13 +589,13 @@ class ThreadController extends ChangeNotifier {
   String _humanize(ApiException e) {
     switch (e.code) {
       case 'unauthorized':
-        return 'Token rejected (401). Re-pair with the server.';
+        return MicaLocalizations.current.t('error.tokenRejected');
       case 'timeout':
-        return 'Timed out loading messages.';
+        return MicaLocalizations.current.t('error.timeoutMessages');
       case 'network_error':
-        return 'Could not reach the server.';
+        return MicaLocalizations.current.t('error.unreachable');
       case 'not_found':
-        return 'This chat was not found on the server.';
+        return MicaLocalizations.current.t('error.chatNotFound');
       default:
         return e.message;
     }

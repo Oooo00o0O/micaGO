@@ -8,6 +8,7 @@ import '../../core/network/websocket_client.dart';
 import 'models/chat_summary.dart';
 import 'models/message_model.dart';
 import 'realtime_event_helpers.dart' as rt;
+import '../../core/l10n/app_localizations.dart';
 
 enum ChatListState { idle, loading, loaded, empty, error }
 
@@ -63,7 +64,9 @@ class ChatListController extends ChangeNotifier {
       final cached = await app.cache.listChats(includeDebug: includeDebug);
       chats = cached;
       state = cached.isEmpty ? ChatListState.error : ChatListState.loaded;
-      error = cached.isEmpty ? 'Not connected to a server.' : null;
+      error = cached.isEmpty
+          ? MicaLocalizations.current.t('common.notConnectedServer')
+          : null;
       notifyListeners();
       return;
     }
@@ -129,11 +132,11 @@ class ChatListController extends ChangeNotifier {
   String _humanize(ApiException e) {
     switch (e.code) {
       case 'unauthorized':
-        return 'Token rejected (401). Re-pair with the server.';
+        return MicaLocalizations.current.t('error.tokenRejected');
       case 'timeout':
-        return 'Timed out loading chats.';
+        return MicaLocalizations.current.t('error.timeoutChats');
       case 'network_error':
-        return 'Could not reach the server.';
+        return MicaLocalizations.current.t('error.unreachable');
       default:
         return e.message;
     }

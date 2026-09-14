@@ -1,4 +1,5 @@
 import '../chat_service.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// A chat row for the chat list.
 ///
@@ -97,7 +98,9 @@ class ChatSummary {
     if (dn.isNotEmpty) return dn;
     if (isGroup) {
       final generated = _groupTitle(participants);
-      return generated.isNotEmpty ? generated : 'Group Chat';
+      return generated.isNotEmpty
+          ? generated
+          : MicaLocalizations.current.t('chat.groupChat');
     }
     final id = chatIdentifier?.trim() ?? '';
     if (id.isNotEmpty) return id;
@@ -119,7 +122,9 @@ class ChatSummary {
         .where((h) => h.isNotEmpty)
         .toList(growable: false);
     final generated = _groupTitle(names);
-    return generated.isNotEmpty ? generated : 'Group Chat';
+    return generated.isNotEmpty
+        ? generated
+        : MicaLocalizations.current.t('chat.groupChat');
   }
 
   static String _groupTitle(List<String> handles) {

@@ -11,6 +11,7 @@ import '../message_display.dart';
 import '../emoji_text.dart';
 import '../message_render.dart';
 import '../models/message_model.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// A single rendered thread row: a date separator, a message, or the
 /// loading-older spinner. Stable [key] drives ListView element reuse.
@@ -314,15 +315,23 @@ class ThreadPresentationBuilder {
         return retractedLabel(m, senderName: senderName);
       case MessageRenderableKind.reaction:
         final t = tapbackFromCode(m.associatedMessageType);
-        if (t == null) return 'Reacted to a message';
+        if (t == null) return MicaLocalizations.current.t('chat.reacted');
         final emoji = reactionEmoji(m);
         return t.isRemoval
-            ? 'Removed a $emoji reaction'
-            : '$emoji Reacted to a message';
+            ? MicaLocalizations.current
+                  .t('chat.removedReaction')
+                  .replaceAll('{emoji}', emoji)
+            : MicaLocalizations.current
+                  .t('chat.reactedWith')
+                  .replaceAll('{emoji}', emoji);
       default:
-        if (m.semanticKind == 'deleted') return 'Message deleted';
-        if (m.semanticKind == 'unavailable') return 'Message unavailable';
-        return 'Unsupported message';
+        if (m.semanticKind == 'deleted') {
+          return MicaLocalizations.current.t('chat.messageDeleted');
+        }
+        if (m.semanticKind == 'unavailable') {
+          return MicaLocalizations.current.t('chat.messageUnavailable');
+        }
+        return MicaLocalizations.current.t('chat.unsupportedMessage');
     }
   }
 

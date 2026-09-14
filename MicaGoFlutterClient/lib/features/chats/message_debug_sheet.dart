@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'message_render.dart';
 import 'models/message_model.dart';
+import '../../core/l10n/app_localizations.dart';
 
 /// Message info sheet with a redacted diagnostic payload. Never shows the
 /// bearer token or credentials (see [messageDebugMap] / [redactJson]).
@@ -40,7 +41,7 @@ class _MessageDebugSheet extends StatelessWidget {
                 const Icon(Icons.info_outline),
                 const SizedBox(width: 8),
                 Text(
-                  'Message Info',
+                  MicaLocalizations.of(context).t('chat.messageInfo'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Spacer(),
@@ -48,13 +49,19 @@ class _MessageDebugSheet extends StatelessWidget {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: json));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Debug JSON copied (token redacted)'),
+                      SnackBar(
+                        content: Text(
+                          MicaLocalizations.of(
+                            context,
+                          ).t('chat.debugJsonCopied'),
+                        ),
                       ),
                     );
                   },
                   icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('Copy debug JSON'),
+                  label: Text(
+                    MicaLocalizations.of(context).t('chat.copyDebugJson'),
+                  ),
                 ),
               ],
             ),

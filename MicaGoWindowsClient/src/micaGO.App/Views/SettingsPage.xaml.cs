@@ -180,7 +180,7 @@ public sealed partial class SettingsPage : Page
     {
         var l=AppServices.Current.Localization;
         ConnectionHeader.Text=l["connection"];ConnectionSubtitle.Text=l["route"];UnpairLabel.Text=l["unpair"];UnpairDescription.Text=l["unpairDescription"];DisconnectButton.Content=l["unpairConfirm"];BuildRouteRows();BehaviorHeader.Text=l["general"];TrayLabel.Text=l["tray"];TrayDescription.Text=l["trayDescription"];LanguageLabel.Text=l["language"];SmsLabel.Text=l["allowSms"];SmsDescription.Text=l["allowSmsDescription"];
-        AppearanceHeader.Text=l["appearance"];ThemeLabel.Text=l["theme"];EmojiHeader.Text=l["emoji"];TwemojiFlagsLabel.Text=l["twemojiFlags"];TwemojiFlagsDescription.Text=l["twemojiFlagsDescription"];ChatBackgroundLabel.Text=l["chatBackground"];ChooseBackgroundButton.Content=l["choose"];ClearBackgroundButton.Content=l["removeBackground"];BubbleColorLabel.Text=l["bubbleColor"];BubbleFollowSystemLabel.Text=l["followSystemAccent"];BubbleColorPickLabel.Text=l["presetColors"];BubbleColorButtonText.Text=l["customColor"];BuildBubbleSwatches();
+        AppearanceHeader.Text=l["appearance"];ThemeLabel.Text=l["theme"];LocalizePickers(l);EmojiHeader.Text=l["emoji"];TwemojiFlagsLabel.Text=l["twemojiFlags"];TwemojiFlagsDescription.Text=l["twemojiFlagsDescription"];ChatBackgroundLabel.Text=l["chatBackground"];ChooseBackgroundButton.Content=l["choose"];ClearBackgroundButton.Content=l["removeBackground"];BubbleColorLabel.Text=l["bubbleColor"];BubbleFollowSystemLabel.Text=l["followSystemAccent"];BubbleColorPickLabel.Text=l["presetColors"];BubbleColorButtonText.Text=l["customColor"];BuildBubbleSwatches();
         NotificationsHeader.Text=l["notifications"];NotificationLabel.Text=l["notify"];NotificationDescription.Text=l["notificationDescription"];NotificationPreviewLabel.Text=l["notificationPreview"];NotificationPreviewDescription.Text=l["notificationPreviewDescription"];
         ContactsHeader.Text=l["contacts"];ContactsHint.Text=l["contactsHint"];ImportVcfLabel.Text=l["importVcf"];ImportVcfButton.Content=l["chooseVcf"];ClearVcfButton.Content=l["clearContacts"];HiddenMessagesLabel.Text=l["hiddenMessages"];HiddenContactsLabel.Text=l["hiddenContacts"];StorageHeader.Text=l["cache"];CacheLabel.Text=l["cacheLabel"];ClearCacheHint.Text=l["clearCache"];ClearCacheButton.Content=l["clearCacheButton"];
         TestingHeader.Text=l["developer"];TestContactLabel.Text=l["testContact"];TestContactHint.Text=l["testContactHint"];BackupHeader.Text=l["backupRestore"];BackupLabel.Text=l["backupLabel"];ExportBackupButton.Content=l["exportBackup"];ImportBackupButton.Content=l["importBackup"];
@@ -242,6 +242,17 @@ public sealed partial class SettingsPage : Page
         BubbleColorPreview.Background=new Microsoft.UI.Xaml.Media.SolidColorBrush(current);
     }
     private async void TwemojiFlagsToggle_Toggled(object sender,RoutedEventArgs e){if(_loading)return;await AppServices.Current.Appearance.SetTwemojiFlagsEnabledAsync(TwemojiFlagsToggle.IsOn);if(_context is not null)await _context.Host.RefreshAppearanceAsync();}
+    // ComboBox shows a snapshot of the selected item, so re-select after renaming.
+    // _loading keeps the selection handlers from saving or re-applying settings.
+    private void LocalizePickers(LocalizationService l)
+    {
+        var wasLoading=_loading;_loading=true;
+        var theme=ThemePicker.SelectedIndex;var language=LanguagePicker.SelectedIndex;
+        ((ComboBoxItem)ThemePicker.Items[0]).Content=l["themeSystem"];((ComboBoxItem)ThemePicker.Items[1]).Content=l["themeLight"];((ComboBoxItem)ThemePicker.Items[2]).Content=l["themeDark"];
+        ((ComboBoxItem)LanguagePicker.Items[0]).Content=l["themeSystem"];
+        ThemePicker.SelectedIndex=-1;ThemePicker.SelectedIndex=theme;LanguagePicker.SelectedIndex=-1;LanguagePicker.SelectedIndex=language;
+        _loading=wasLoading;
+    }
     private void UpdateBackgroundStatus(){if(ChatBackgroundStatus is null)return;var l=AppServices.Current.Localization;var custom=!string.IsNullOrWhiteSpace(AppServices.Current.Appearance.ChatBackgroundPath)&&File.Exists(AppServices.Current.Appearance.ChatBackgroundPath);ChatBackgroundStatus.Text=l[custom?"customBackground":"defaultMicaBackground"];ClearBackgroundButton.IsEnabled=custom;}
     private async void ImportVcfButton_Click(object sender,RoutedEventArgs e)
     {

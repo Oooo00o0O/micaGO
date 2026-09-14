@@ -132,7 +132,7 @@ public sealed class ConnectionPage : Page
         catch (Exception exception)
         {
             App.ReportStartupFailure(exception);
-            ShowStatus($"Connected, but the chat interface could not be opened: {SafeMessage(exception)}");
+            ShowStatus(string.Format(AppServices.Current.Localization["chatWindowFailed"], SafeMessage(exception)));
             SetBusy(false, string.Empty);
         }
     }
@@ -151,8 +151,8 @@ public sealed class ConnectionPage : Page
 
     private static string SafeMessage(Exception exception) => exception switch
     {
-        System.ComponentModel.Win32Exception => "Windows Credential Manager is unavailable.",
-        HttpRequestException => "The server could not be reached.",
+        System.ComponentModel.Win32Exception => AppServices.Current.Localization["credentialsUnavailable"],
+        HttpRequestException => AppServices.Current.Localization["serverUnreachable"],
         _ => exception.Message,
     };
 

@@ -3,6 +3,7 @@ import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 
 import '../../core/storage/secure_store.dart';
 import 'contact_identity.dart';
+import '../../core/l10n/app_localizations.dart';
 
 enum ContactsStatus { disabled, requesting, denied, ready }
 
@@ -55,7 +56,7 @@ class ContactsService extends ChangeNotifier {
       );
     } catch (_) {
       status = ContactsStatus.denied;
-      error = 'Could not request contacts permission.';
+      error = MicaLocalizations.current.t('contacts.permissionFailed');
       notifyListeners();
       return;
     }
@@ -156,7 +157,7 @@ class ContactsService extends ChangeNotifier {
       error = null;
     } catch (_) {
       status = ContactsStatus.denied;
-      error = 'Could not read contacts.';
+      error = MicaLocalizations.current.t('contacts.readFailed');
     }
   }
 }

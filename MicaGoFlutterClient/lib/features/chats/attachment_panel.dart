@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
+import '../../core/l10n/app_localizations.dart';
 
 /// One attachment staged for sending (selected but not yet sent). [sourceId] is
 /// the gallery asset id when picked from the media grid, so the grid can show a
@@ -161,7 +162,11 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
         _recent = await albums.first.getAssetListRange(start: 0, end: 31);
       }
     } catch (e) {
-      widget.onError('Could not load recent media: $e');
+      widget.onError(
+        MicaLocalizations.current
+            .t('chat.recentMediaFailed')
+            .replaceAll('{error}', '$e'),
+      );
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -181,7 +186,11 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
         ),
       ]);
     } catch (e) {
-      widget.onError('Camera unavailable or permission denied: $e');
+      widget.onError(
+        MicaLocalizations.current
+            .t('chat.cameraFailed')
+            .replaceAll('{error}', '$e'),
+      );
     } finally {
       _pickingCamera = false;
     }
@@ -204,7 +213,11 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
       }
       if (picked.isNotEmpty) widget.onPicked(picked);
     } catch (e) {
-      widget.onError('Could not open Files: $e');
+      widget.onError(
+        MicaLocalizations.current
+            .t('chat.filesFailed')
+            .replaceAll('{error}', '$e'),
+      );
     }
   }
 
@@ -223,7 +236,11 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
       }
       if (picked.isNotEmpty) widget.onPicked(picked);
     } catch (e) {
-      widget.onError('Could not open photo picker: $e');
+      widget.onError(
+        MicaLocalizations.current
+            .t('chat.photoPickerFailed')
+            .replaceAll('{error}', '$e'),
+      );
     }
   }
 
@@ -281,18 +298,24 @@ class _AttachmentPanelState extends State<AttachmentPanel> {
                               // other attachment).
                               _ActionTile(
                                 icon: Icons.photo_camera_outlined,
-                                label: 'Camera',
+                                label: MicaLocalizations.of(
+                                  context,
+                                ).t('chat.camera'),
                                 onTap: _pickCamera,
                               ),
                               _ActionTile(
                                 icon: Icons.folder_open_outlined,
-                                label: 'Files',
+                                label: MicaLocalizations.of(
+                                  context,
+                                ).t('chat.files'),
                                 onTap: _pickFiles,
                               ),
                               if (_permission == PermissionState.limited)
                                 _ActionTile(
                                   icon: Icons.add_photo_alternate_outlined,
-                                  label: 'More photos',
+                                  label: MicaLocalizations.of(
+                                    context,
+                                  ).t('chat.morePhotos'),
                                   onTap: () => PhotoManager.presentLimited(),
                                 ),
                             ]),
@@ -484,7 +507,7 @@ class _MorePhotosTile extends StatelessWidget {
               Icon(Icons.photo_library_outlined, color: scheme.onPrimary),
               const SizedBox(height: 6),
               Text(
-                'More',
+                MicaLocalizations.of(context).t('chat.more'),
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: scheme.onPrimary,
                   fontWeight: FontWeight.w700,
@@ -518,8 +541,8 @@ class _PermissionPrompt extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
                 denied
-                    ? 'Photo access is off. Use Files, or enable photo access in Settings.'
-                    : 'Grant photo access to pick from your gallery.',
+                    ? MicaLocalizations.of(context).t('chat.photoAccessOff')
+                    : MicaLocalizations.of(context).t('chat.photoAccessAsk'),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
@@ -527,7 +550,9 @@ class _PermissionPrompt extends StatelessWidget {
             const SizedBox(height: 6),
             TextButton(
               onPressed: () => PhotoManager.openSetting(),
-              child: const Text('Open Settings'),
+              child: Text(
+                MicaLocalizations.of(context).t('common.openSettings'),
+              ),
             ),
           ],
         ),
