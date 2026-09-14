@@ -171,7 +171,7 @@ private struct FullDiskAccessBanner: View {
                 Image(systemName: "externaldrive.badge.exclamationmark").foregroundStyle(.red)
                 Text("Full Disk Access required").fontWeight(.semibold)
             }
-            Text("micaGO can't read the Messages database. Grant Full Disk Access to micaGO Companion (and the bundled server), then start the server again.")
+            Text("micaGO can't read the Messages database. Give micaGO Companion Full Disk Access, then start the server again.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button("Open Full Disk Access Settings") { openFullDiskAccessSettings() }
@@ -270,7 +270,7 @@ private struct ServerPrimaryToolbarButton: View {
 
     private func startHelp(_ state: ServerDisplayState) -> String {
         if state == .externalUnmanaged {
-            return "An external server is running; the companion can't control it"
+            return "An external server is running, so Companion can't control it"
         }
         if !backend.binaryExists { return "No backend binary installed" }
         return "Start server"
@@ -387,7 +387,7 @@ private struct ServerRemoteCard: View {
             } else {
                 // No public endpoint and no tunnel — remote access is simply off.
                 // LAN/pairing continues to work without it.
-                Text("Not configured. LAN pairing works without it; add a tunnel under Connections to enable remote access.")
+                Text("Not set up. LAN pairing works without it. Add a tunnel under Connections for remote access.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -567,7 +567,7 @@ private struct TutorialsPage: View {
 
     var body: some View {
         SectionCard(title: "Tutorials") {
-            Text("User guides on GitHub. Links open in your browser.")
+            Text("User guides on GitHub open in your browser.")
                 .foregroundStyle(.secondary)
             Divider()
             ForEach(Self.entries, id: \.title) { entry in
@@ -874,7 +874,7 @@ private struct HelperUIState {
             headline = "Not available on this version of macOS"
         default: // missing or unknown
             icon = "arrow.down.circle"; color = .secondary
-            headline = "IMCore helper not installed — these actions are hidden in the app"
+            headline = "IMCore helper not installed, so these actions are hidden in the app"
         }
     }
 }
@@ -913,7 +913,7 @@ private struct RuntimeCard: View {
                     Button("Open Messages") { runtime.openMessages() }
                 }
             }
-            Text("Messages.app must be running to send via AppleScript.")
+            Text("Messages.app must be running to send messages.")
                 .font(.caption2).foregroundStyle(.secondary)
 
             Divider()
@@ -991,7 +991,7 @@ private struct LiveSyncMonitorCard: View {
                 Text("No sync diagnostics yet. Start the server and trigger a sync.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Text("Diagnostics only — no tokens or message text are shown.")
+            Text("Diagnostics only. Tokens and message text are never shown.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
     }
@@ -1013,7 +1013,7 @@ private struct BinaryPathRow: View {
                 Button("Choose…") { chooseBinary() }
                     .controlSize(.small)
             }
-            Text("Advanced: normally you do not need to change this. micaGO uses the bundled backend.")
+            Text("Advanced. You normally don't need to change this, since micaGO uses the bundled backend.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(resolvedDescription)
@@ -1070,7 +1070,7 @@ private struct ServerBindAddressCard: View {
 
     var body: some View {
         SectionCard(title: "Server Bind Address") {
-            Text("micaGO listens on your local network so Android devices on the same Wi‑Fi can connect. This applies to the server the companion launches.")
+            Text("micaGO listens on your local network so devices on the same Wi‑Fi can connect. This applies to the server Companion starts.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -1108,10 +1108,10 @@ private struct ServerBindAddressCard: View {
             // C25: show the real Android-usable LAN address, not the raw bind
             // (0.0.0.0 is not an address a device can connect to).
             if let lan = model.urls?.lan.first {
-                Text("Android devices connect to: \(lan.baseUrl)")
+                Text("Devices connect to: \(lan.baseUrl)")
                     .font(.caption).foregroundStyle(.secondary)
             } else if model.status?.address.listen.isEmpty == false {
-                Text("Listening, but no LAN address was found — check this Mac is on Wi‑Fi/Ethernet.")
+                Text("Listening, but no LAN address was found. Check that this Mac is on Wi‑Fi or Ethernet.")
                     .font(.caption).foregroundStyle(.orange)
             } else {
                 Text("Server is not running. The change applies the next time it starts.")
@@ -1130,7 +1130,7 @@ private struct ServerBindAddressCard: View {
             }
 
             if displayState(backend, model) == .externalUnmanaged {
-                Text("This server was not launched by the companion, so its bind address can't be changed from here.")
+                Text("Companion didn't start this server, so it can't change the bind address.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1144,9 +1144,9 @@ private struct ServerBindAddressCard: View {
     private var explanation: String {
         switch mode {
         case .localNetwork:
-            return "Devices on the same Wi‑Fi connect using the LAN address shown above. Recommended."
+            return "Devices on the same Wi‑Fi use the LAN address shown above. Recommended."
         case .custom:
-            return "Bind to a specific interface address. Use only if you know which interface the server should listen on."
+            return "Listen on one interface address. Only use this if you know which interface to pick."
         }
     }
 
@@ -1236,7 +1236,7 @@ private struct LogsPage: View {
     var body: some View {
         SectionCard(title: "Server Log") {
             if backend.logLines.isEmpty {
-                Text("No output yet. The log shows output from a server started by this companion. Tokens are redacted.")
+                Text("No output yet. The log shows output from a server Companion started. Tokens are hidden.")
                     .foregroundStyle(.secondary)
             } else {
                 ScrollView {
@@ -1344,7 +1344,7 @@ private struct BackendIdentityCard: View {
                 LabeledRow(label: "chat.db", value: b.chatDbPath)
                 LabeledRow(label: "chat.db open", value: b.chatDbOpenOptions)
                 if b.chatDbImmutable {
-                    Label("Running backend opens chat.db with immutable=1 — this build predates the malformed-DB fix. Restart with the latest backend.",
+                    Label("The running backend opens chat.db with immutable=1, so it predates the malformed-database fix. Restart it with the latest backend.",
                           systemImage: "exclamationmark.octagon.fill")
                         .font(.caption).foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1353,12 +1353,12 @@ private struct BackendIdentityCard: View {
                     LabeledRow(label: "Backfill", value: "\(s.backfillMode) (\(s.recentMessagesPerChat)/chat)")
                 }
             } else if model.status != nil {
-                Label("The running server does not report its build identity — it predates v0.15 and is missing recent sync fixes. Restart with the latest backend.",
+                Label("The running server doesn't report its build, so it predates v0.15 and lacks recent sync fixes. Restart it with the latest backend.",
                       systemImage: "exclamationmark.triangle.fill")
                     .font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Server not reachable — start it to see the running build.")
+                Text("Server not reachable. Start it to see the running build.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
             if let line = backend.launchedVersionLine {
@@ -1394,7 +1394,7 @@ private struct ConnectionEndpointsSection: View {
             // — Android can't reach 127.0.0.1.
             EndpointGroupHeader(
                 title: "LAN / same Wi‑Fi",
-                subtitle: "The address Android devices on the same Wi‑Fi use to connect. Hide noisy VPN/virtual addresses so they aren’t offered for pairing.")
+                subtitle: "The address devices on the same Wi‑Fi use to connect. Hide VPN or virtual addresses so they aren’t offered for pairing.")
             if let urls = model.urls, !urls.lan.isEmpty {
                 ForEach(urls.lan) { LANEndpointRow(endpoint: $0) }
                 if !model.hiddenLANBaseURLs.isEmpty {
@@ -1404,7 +1404,7 @@ private struct ConnectionEndpointsSection: View {
                     .controlSize(.small).font(.caption)
                 }
             } else {
-                Text("No LAN address available. Make sure this Mac is on Wi‑Fi or Ethernet (a VPN-only address won’t work).")
+                Text("No LAN address available. Make sure this Mac is on Wi‑Fi or Ethernet. A VPN-only address won’t work.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1413,7 +1413,7 @@ private struct ConnectionEndpointsSection: View {
 
             EndpointGroupHeader(
                 title: "Public / remote",
-                subtitle: "Optional fallback for access outside your Wi‑Fi. LAN works without it.")
+                subtitle: "Optional, for access outside your Wi‑Fi. LAN works without it.")
             PublicURLEditor()
         }
     }
@@ -1495,7 +1495,7 @@ private struct PublicURLEditor: View {
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
 
-            Text("Enter only the origin. Do not include /api, /ws, or a trailing path.")
+            Text("Enter only the origin, without /api, /ws, or any other path.")
                 .font(.caption2).foregroundStyle(.secondary)
 
             if let warning = originWarning {
@@ -1541,7 +1541,7 @@ private struct PublicURLEditor: View {
                     .lineLimit(1).truncationMode(.middle)
             }
 
-            Text("Optional extra endpoint. Local and LAN stay active without it.")
+            Text("Optional extra endpoint. LAN keeps working without it.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -1569,16 +1569,16 @@ private struct PublicURLEditor: View {
     private var publicDiagnostic: (text: String, ok: Bool)? {
         guard let r = model.publicCheckResult else { return nil }
         if r.ok {
-            return ("Reachable and the token was accepted — Public is ready for pairing.", true)
+            return ("Reachable, and the token was accepted. Public is ready for pairing.", true)
         }
         if !r.reachable {
-            return ("Couldn’t reach the public URL. Check that the tunnel is running and forwards to this server’s port (timeout or connection refused).", false)
+            return ("Couldn’t reach the public URL. Check that the tunnel is running and forwards to this server’s port.", false)
         }
         switch r.status {
         case 401, 403:
-            return ("Reached a server, but it rejected the token (\(r.status)). The public URL may point to a different server than this one.", false)
+            return ("Reached a server, but it rejected the token (\(r.status)). The public URL may point to another server.", false)
         case 502, 503, 504:
-            return ("The public URL reached the tunnel, but no server answered behind it (\(r.status)). Make sure micaGO is running and the tunnel forwards to its port.", false)
+            return ("The tunnel answered, but no server is behind it (\(r.status)). Make sure micaGO is running and the tunnel forwards to its port.", false)
         default:
             return (r.message.isEmpty ? "Validation failed (HTTP \(r.status))." : r.message, false)
         }
@@ -1605,7 +1605,7 @@ private struct PublicURLEditor: View {
             return "Enter a full origin like https://micago.example.com"
         }
         if !(comps.path.isEmpty || comps.path == "/") {
-            return "Remove the path — enter only the origin (no /api, /ws, etc.)."
+            return "Remove the path. Enter only the origin, without /api, /ws, or any other path."
         }
         if comps.query != nil || comps.fragment != nil {
             return "Remove the query/fragment — enter only the origin."
@@ -1679,7 +1679,7 @@ private struct CreateConnectionCard: View {
     private var emptyMessage: String {
         if model.token.isEmpty { return "Start the server to generate a connection." }
         if model.urls != nil {
-            return "No Android-usable endpoint yet. Make sure this Mac is on Wi‑Fi or Ethernet, or configure Public as an optional remote endpoint."
+            return "No endpoint devices can use yet. Put this Mac on Wi‑Fi or Ethernet, or set up Public for remote access."
         }
         return "No Android-usable endpoint yet."
     }
@@ -1706,7 +1706,7 @@ private struct DevicesSection: View {
     var body: some View {
         SectionCard(title: "Push Devices (\(model.devices.count))") {
             if model.devices.isEmpty {
-                Text("No push devices registered. FCM registration is optional and separate from active server connections.")
+                Text("No push devices registered. FCM registration is optional and separate from server connections.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(model.devices) { device in
@@ -1740,7 +1740,7 @@ private struct NotificationsSection: View {
             } else {
                 Text("Unavailable.").foregroundStyle(.secondary)
             }
-            Text("Provider status is read-only here. Configuring providers and Firebase self-host (FCM) is planned for v0.12.")
+            Text("Read-only. Set up Firebase (FCM) on the Notifications page.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

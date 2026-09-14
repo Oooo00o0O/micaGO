@@ -17,9 +17,9 @@ enum IMCoreHelperInstaller {
         var errorDescription: String? {
             switch self {
             case .notBundled:
-                return "This micaGO build does not include the IMCore helper component yet, "
-                    + "so it can’t be installed automatically. Edit, Unsend, and Delete stay "
-                    + "hidden until a build that bundles the helper is installed."
+                return "This build of micaGO doesn’t include the IMCore helper, so it can’t be "
+                    + "installed automatically. Edit, Unsend, and Delete stay hidden until you "
+                    + "install a build that includes it."
             case .ioFailure(let detail):
                 return "Could not install the IMCore helper: \(detail)"
             }

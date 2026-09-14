@@ -139,7 +139,7 @@ private struct FiltersCard: View {
 
     var body: some View {
         SectionCard(title: "Message Inspector") {
-            Text("Find and inspect problematic messages from the live chat.db. Read-only debug tool — payloads are redaction-safe (no token, file paths, or credentials).")
+            Text("Find and inspect problem messages in the live chat.db. This debug tool is read-only, and payloads leave out tokens, file paths, and credentials.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -556,7 +556,7 @@ struct TestContactDebugCard: View {
         SectionCard(title: "Test Contact") {
             if !vm.available {
                 Text(vm.statusText.isEmpty
-                     ? "The offline test contact loops messages between this Mac and the phone — nothing is ever delivered."
+                     ? "The offline test contact passes messages between this Mac and the phone. Nothing is ever delivered."
                      : vm.statusText)
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -572,7 +572,7 @@ struct TestContactDebugCard: View {
                 conversation
                 composer
                 HStack {
-                    Text("Pushes to the phone; phone replies appear here. Resets on server restart.")
+                    Text("Messages here go to the phone, and its replies show up here. Resets when the server restarts.")
                         .font(.caption2).foregroundStyle(.secondary)
                     Spacer()
                     Button("Disable") { Task { await vm.setEnabled(false, model) } }

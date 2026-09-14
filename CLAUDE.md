@@ -18,6 +18,7 @@ Four components:
 - Keep it **lightweight** — no new dependencies without a clear need.
 - **Firebase, keep-alive, and IMCore message actions are all optional and off by default.** Don't word docs/UI as if they're required or guaranteed.
 - Keep final logs clean (debug-guarded only).
+- **UI and website copy stays plain and short.** Say only what the user needs ("Chat hidden", not where it was hidden). No filler, no "not X but Y", no dash asides, no trailing ", doing …" clauses; Oxford comma for three or more items; no stacked adjectives or "A and B" pairs where one word will do.
 - Companion menu-bar icon must use **template rendering** (no hard-coded colors) so it adapts to light/dark menu bars.
 - **Before debugging sync, check the running backend binary's version against source** — a stale binary is a common false lead. Rebuild via `scripts/build-backend.sh`.
 

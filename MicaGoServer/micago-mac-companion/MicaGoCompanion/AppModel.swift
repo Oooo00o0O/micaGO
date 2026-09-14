@@ -215,7 +215,7 @@ final class AppModel: ObservableObject {
     func reloadConfig() {
         config = ConfigReader.read()
         if config == nil {
-            lastError = "Could not read \(ConfigReader.configPath). Start the server once to generate it."
+            lastError = "Could not read \(ConfigReader.configPath). Start the server once to create it."
         } else if lastError?.contains(ConfigReader.configPath) == true {
             lastError = nil
         }
@@ -283,7 +283,7 @@ final class AppModel: ObservableObject {
 
         authValid = await client.checkAuth()
         guard authValid else {
-            lastError = "Server is up but the token was rejected. Check \(ConfigReader.configPath)."
+            lastError = "The server is up but rejected the token. Check \(ConfigReader.configPath)."
             return
         }
         await chatPreferences.sync(client: client)
@@ -423,7 +423,7 @@ final class AppModel: ObservableObject {
                 return
             }
             guard let baseURL else {
-                helperInstallMessage = "Installed the IMCore helper at \(path). Start the server to enable Edit, Unsend, and Delete."
+                helperInstallMessage = "Installed the IMCore helper at \(path). Start the server to turn on Edit, Unsend, and Delete."
                 return
             }
             let client = APIClient(baseURL: baseURL, token: token)
@@ -505,11 +505,11 @@ final class AppModel: ObservableObject {
     private func installResultMessage(state: String, path: String) -> String {
         switch state {
         case "ready":
-            return "IMCore helper is ready. Edit, Unsend, and Delete are now available."
+            return "The IMCore helper is ready. Edit, Unsend, and Delete are available."
         case "not_runnable":
-            return "Installed at \(path), but the helper would not run. Check that it is allowed to execute."
+            return "Installed at \(path), but the helper won\u{2019}t run. Check that macOS allows it to run."
         case "unsupported_selectors":
-            return "Installed, but this macOS doesn’t expose the required IMCore actions, so Edit/Unsend/Delete stay unavailable."
+            return "Installed, but this version of macOS doesn’t offer the IMCore actions, so Edit, Unsend, and Delete stay off."
         default:
             return "Installed the IMCore helper at \(path), but the backend still reports it as unavailable."
         }

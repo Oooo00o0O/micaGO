@@ -272,7 +272,7 @@
                             <TextBlock x:Name="ThreadSubtitle"
                                        FontSize="11"
                                        Foreground="{ThemeResource MicaGoPageHeaderSecondaryBrush}"
-                                       Text="Messages stay on this device"
+                                       Text=""
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                         <Button x:Name="ThreadDetailsButton"

@@ -184,7 +184,7 @@ final class BackendController: ObservableObject {
         let line = Self.probeVersionLine(at: resolved.path)
         launchedVersionLine = line
         if line == nil {
-            staleBinaryWarning = "The selected backend (\(resolved.source)) does not report a version — it predates v0.15 and is missing recent sync fixes. Rebuild it: MicaGoServer/micago-server/scripts/build-backend.sh"
+            staleBinaryWarning = "The selected backend (\(resolved.source)) doesn't report a version, so it predates v0.15 and lacks recent sync fixes. Rebuild it with MicaGoServer/micago-server/scripts/build-backend.sh"
         } else if resolved.source == "override" {
             // An override pins an exact binary; warn if a newer build exists elsewhere.
             let overrideDate = Self.modificationDate(resolved.path)
@@ -567,7 +567,7 @@ final class BackendController: ObservableObject {
     private func summarize(kind: BackendFailureKind, code: Int32) -> String {
         switch kind {
         case .fullDiskAccess: return "Full Disk Access is required to read the Messages database."
-        case .addressInUse: return "The listen address is already in use (another server may be running)."
+        case .addressInUse: return "The listen address is already in use. Another server may be running."
         case .configInvalid:
             if let last = lastStderrLine, !last.isEmpty {
                 return "Server config error: \(last)"

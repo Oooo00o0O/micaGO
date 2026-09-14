@@ -63,7 +63,7 @@ private struct FirebaseSetupCard: View {
                 Text("None (silent wake)").tag("none")
             }
             .pickerStyle(.menu)
-            Text("“Sender & message” includes the message text in the push payload (delivered via Google FCM). Choose “Sender only” or “None” if you don't want content to leave your network.")
+            Text("“Sender & message” puts the message text in the push, which goes through Google FCM. Pick “Sender only” or “None” to keep message text off Google's servers.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -74,7 +74,7 @@ private struct FirebaseSetupCard: View {
                 button: "Choose google-services.json…",
                 action: chooseGoogleServices
             )
-            Text("This lets the Android client initialize Firebase at runtime.")
+            Text("The Android app uses this file to set up Firebase.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -85,7 +85,7 @@ private struct FirebaseSetupCard: View {
                 button: "Choose service-account JSON…",
                 action: chooseServiceAccount
             )
-            Text("This file stays on the Mac and lets the server send FCM.")
+            Text("This file stays on the Mac. The server uses it to send pushes.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -94,7 +94,7 @@ private struct FirebaseSetupCard: View {
                 .font(.system(.callout, design: .monospaced))
 
             Toggle("Sync public URL to Firestore (optional)", isOn: $model.firestoreURLSync)
-            Text("Only the public server URL is written. Messages, tokens, contacts, and attachments are not stored there.")
+            Text("Only the public server URL is written there. Messages, tokens, contacts, and attachments are never stored.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -114,7 +114,7 @@ private struct FirebaseSetupCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Text("Test sends to every registered FCM device.")
+            Text("Sends a test to every registered FCM device.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
     }
