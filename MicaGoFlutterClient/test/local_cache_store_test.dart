@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mica_go/features/chats/message_display.dart';
 import 'package:mica_go/features/chats/message_render.dart';
@@ -7,6 +8,13 @@ import 'package:mica_go/features/chats/models/message_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+  });
+  tearDownAll(() {
+    debugDefaultTargetPlatformOverride = null;
+  });
 
   late LocalCacheStore store;
 
